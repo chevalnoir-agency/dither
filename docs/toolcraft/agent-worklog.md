@@ -6,7 +6,7 @@ This file records product decisions and the evidence behind them.
 
 Mode: product
 
-CHEVAL NOIR DITHER is a product app with a custom Canvas 2D renderer, playback timeline, product controls including particle spacing, SVG/PNG/JPG/video exports, persistence, acceptance coverage, and performance coverage.
+CHEVAL NOIR DITHER is a product app with a custom Canvas 2D renderer, playback timeline, product controls including particle spacing and contrast, SVG/PNG/JPG/video exports, persistence, acceptance coverage, and performance coverage.
 
 ## Decision Trail
 
@@ -61,13 +61,30 @@ CHEVAL NOIR DITHER is a product app with a custom Canvas 2D renderer, playback t
 - Skipped checks: Full performance checkpoint is not required for this post-first-working visual/control iteration unless targeted performance evidence points to a broader regression.
 - Risks: Risk: The organic void field changes the reference motif away from rectangular islands by user request, so acceptance now maps to organic negative-space behavior rather than exact block silhouettes.
 
+### Iteration 4 — Particle Contrast Control
+
+- Request: Add a contrast control parameter to CHEVAL NOIR DITHER.
+- Task type: Tier 3 post-first-working product iteration touching schema controls, renderer tone mapping, SVG/video/image export frame output, acceptance, performance, browser tests, and worklog.
+- User-visible result: The Dither section now includes a `Contrast` slider that remaps particle brightness between `#222629` and `#BEBDC1` without changing particle spacing, size, or count.
+- Source/reference checked: Current schema, renderer, export frame model, acceptance matrix, performance pipeline, targeted browser tests, and the existing reference-video study.
+- Reference inputs: Existing screen recording `/Users/pierrevoisin/Desktop/Enregistrement de l’écran 2026-07-04 à 10.20.45.mov`, extracted reference frames, and latest user request for a contrast parameter.
+- Docs/contracts read: `AGENTS.md`, `docs/toolcraft/workflow.md`, `schema-reference.md`, `component-rules.md`, `acceptance-testing.md`, `renderer-technique.md`, and `performance.md`; required skills `brainstorming` and `writing-plans`.
+- Contract rules applied: `controls-product-coverage`, `output-export-required`, `renderer-technique-inventory`, `acceptance-product-observable`, `performance-coverage-levels`, `persistence-policy-explicit`, and `workflow-required`.
+- Decision: Add built-in slider `dither.contrast` to Dither with default `1`, range `0..2`, and live responsiveness coverage; keep `dither.strength` as cutoff sharpness and apply contrast as a tone remap around mid-gray before the particle color ramp.
+- Alternatives rejected: A custom control was rejected because the value is a simple live numeric slider; changing the existing Strength semantics was rejected because it already controls threshold sharpness and would break existing settings; applying contrast in CSS/opacity was rejected because exports need real particle colors in Canvas, SVG, PNG, and video.
+- State/output mapping: `dither.contrast` is read by `getAsciiPatternSettings`, stored in the shared frame settings, applied by `getAsciiParticleColor(tone, contrast)`, and consumed by Canvas preview plus SVG/PNG/video exports through the same `AsciiPatternFrame` model.
+- Files changed: `src/app/app-schema.ts`, `src/app/ascii-pattern.ts`, `src/app/app-acceptance.ts`, `src/app/app-performance.ts`, `src/app/app-schema.test.ts`, `src/app/app-acceptance.test.ts`, `e2e/app-controls.spec.ts`, and `docs/toolcraft/agent-worklog.md`.
+- Verification: Targeted unit tests passed (`pnpm vitest run src/app/app-schema.test.ts src/app/app-acceptance.test.ts src/app/app-performance.test.ts`); `pnpm verify:quick` passed; `pnpm build` passed; targeted browser acceptance passed for `browser: dither controls change ASCII output`; targeted browser performance passed for `browser perf: contrast control drag stays responsive`.
+- Skipped checks: Full performance checkpoint is not required for this post-first-working non-performance edit because the targeted renderer/control path passed and the new slider does not increase glyph count, canvas size, render scale, or export resolution.
+- Risks: None: the default value `1` preserves the existing tonal output until the user edits the new control.
+
 ## Decisions
 
 ### Renderer
 
 - Decision: Canvas 2D live preview renderer with SVG still export generated from the same ASCII frame model.
 - Reason: The product is dense text-output: the stress state can draw many glyphs per frame, while the user still needs a vector SVG still export and exact particle colors.
-- Evidence: `src/app/ascii-pattern-renderer.tsx` renders only product canvas output; `src/app/ascii-pattern.ts` generates deterministic organic glyph frames and SVG text with the CHEVAL NOIR color ramp; `src/app/app-performance.ts` declares `rendererTechnique`, `rendererPipeline`, and workload scenarios.
+- Evidence: `src/app/ascii-pattern-renderer.tsx` renders only product canvas output; `src/app/ascii-pattern.ts` generates deterministic organic glyph frames, contrast-aware tone remapping, and SVG text with the CHEVAL NOIR color ramp; `src/app/app-performance.ts` declares `rendererTechnique`, `rendererPipeline`, and workload scenarios.
 
 Renderer Technique Decision Matrix:
 
@@ -87,7 +104,7 @@ Renderer Layer Inventory:
 
 Render Pipeline Inventory:
 
-- field-model pass: text-layout on main thread; cache keys are particle type, scale, spacing, density, dither strength, threshold, speed, timeline time, duration, and canvas size.
+- field-model pass: text-layout on main thread; cache keys are particle type, scale, spacing, density, dither strength, dither contrast, threshold, speed, timeline time, duration, and canvas size.
 - glyph-raster-preview pass: rasterize on main thread; cache keys are field model, background, include background, and render scale.
 - export-frame pass: export-only; cache keys are field model, background, include background, image settings, video settings, and canvas size.
 - interaction invalidation: control drags invalidate field/preview; timeline playback and scrub invalidate field/preview; viewport drag and zoom must not invalidate field or raster caches; export invalidates only export-frame.
@@ -108,7 +125,7 @@ Render Pipeline Inventory:
 
 - Decision: Product controls are grouped as Pattern, Motion, Dither, Background, Image Export, Video Export, and sticky Export actions.
 - Reason: Each section maps to a product entity or workflow stage rather than control type; Background directly precedes export settings as required.
-- Evidence: `starterControlSectionInventory` in `src/app/app-acceptance.ts` mirrors the schema targets including `pattern.spacing`; every visible control has `performanceRole`, `defaultValue`, and an acceptance row.
+- Evidence: `starterControlSectionInventory` in `src/app/app-acceptance.ts` mirrors the schema targets including `pattern.spacing` and `dither.contrast`; every visible control has `performanceRole`, `defaultValue`, and an acceptance row.
 
 ### Export
 
@@ -119,8 +136,8 @@ Render Pipeline Inventory:
 ### Performance
 
 - Decision: Guarantee the full exposed hard limits for scale 6, spacing 0, density 100, threshold 0.1/0.2, and render scale 2 in fallback browser performance scenarios.
-- Reason: These values represent the heaviest useful preview states for a dense ASCII text-output renderer.
-- Evidence: `src/app/app-performance.ts` declares `loadProfile` with `hardLimit`, `smoothTarget`, and `smoothTargetRatio: 1` for workload and stress fixtures; scenarios cover control drag, animation frame sampling, animated viewport drag, viewport zoom stress, and short video export.
+- Reason: These values represent the heaviest useful preview states for a dense ASCII text-output renderer; contrast is covered as a responsiveness drag because it changes tone mapping without increasing glyph count.
+- Evidence: `src/app/app-performance.ts` declares `loadProfile` with `hardLimit`, `smoothTarget`, and `smoothTargetRatio: 1` for workload and stress fixtures; scenarios cover control drag, including `contrast-control-drag`, animation frame sampling, animated viewport drag, viewport zoom stress, and short video export.
 
 ## Evidence
 

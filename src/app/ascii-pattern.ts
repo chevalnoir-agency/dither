@@ -10,6 +10,7 @@ export type AsciiParticleType = "cross" | "dot" | "mixed";
 export type AsciiPatternSettings = {
   background: string;
   density: number;
+  ditherContrast: number;
   ditherStrength: number;
   ditherThreshold: number;
   imageFormat: "jpg" | "png";
@@ -45,6 +46,7 @@ export const ASCII_PARTICLE_HIGH_COLOR = "#BEBDC1";
 const fallbackSettings: AsciiPatternSettings = {
   background: "#0A0C11",
   density: 68,
+  ditherContrast: 1,
   ditherStrength: 1.15,
   ditherThreshold: 0.46,
   imageFormat: "png",
@@ -160,8 +162,8 @@ function rgbToHex(red: number, green: number, blue: number): string {
     .join("")}`.toUpperCase();
 }
 
-export function getAsciiParticleColor(tone: number): string {
-  const amount = clamp(tone, 0, 1);
+export function getAsciiParticleColor(tone: number, contrast = 1): string {
+  const amount = clamp(0.5 + (clamp(tone, 0, 1) - 0.5) * contrast, 0, 1);
   const low = hexToRgb(ASCII_PARTICLE_LOW_COLOR);
   const high = hexToRgb(ASCII_PARTICLE_HIGH_COLOR);
 
@@ -195,6 +197,11 @@ export function getAsciiPatternSettings(state: ToolcraftState): AsciiPatternSett
       fallbackSettings.background,
     ),
     density: clamp(readNumber(state.values["pattern.density"], fallbackSettings.density), 0, 100),
+    ditherContrast: clamp(
+      readNumber(state.values["dither.contrast"], fallbackSettings.ditherContrast),
+      0,
+      2,
+    ),
     ditherStrength: clamp(
       readNumber(state.values["dither.strength"], fallbackSettings.ditherStrength),
       0.05,
@@ -258,7 +265,7 @@ export function createAsciiPatternFrame({
   const phase = progress * Math.PI * 2;
   const density = settings.density / 100;
   const threshold = settings.ditherThreshold;
-  const contrast = settings.ditherStrength;
+  const cutoffStrength = settings.ditherStrength;
   const travel = settings.speed * 8;
   const driftX = Math.cos(phase) * travel;
   const driftY = Math.sin(phase) * travel * 0.7;
@@ -303,7 +310,11 @@ export function createAsciiPatternFrame({
         0.09 * counterSweep +
         0.04 * band;
       const normalized = clamp(envelope, 0, 1);
-      const intensity = smoothstep(threshold - 0.34 / contrast, threshold + 0.34 / contrast, normalized);
+      const intensity = smoothstep(
+        threshold - 0.34 / cutoffStrength,
+        threshold + 0.34 / cutoffStrength,
+        normalized,
+      );
       const mask = hashNoise(column, row, 41);
       const organicMask = clamp(mask * (0.78 + voidField * 0.5) + voidField * 0.14, 0, 1);
       const flicker = 0.82 + 0.18 * Math.sin(phase + hashNoise(column, row, 11) * Math.PI * 2);
@@ -315,7 +326,10 @@ export function createAsciiPatternFrame({
 
       glyphs.push({
         char: getGlyphForCell(settings.particleType, intensity, mask),
-        color: getAsciiParticleColor(clamp(visibility * 0.86 + intensity * 0.14, 0, 1)),
+        color: getAsciiParticleColor(
+          clamp(visibility * 0.86 + intensity * 0.14, 0, 1),
+          settings.ditherContrast,
+        ),
         size: glyphCell * (settings.particleType === "dot" ? 0.72 : 0.9),
         x,
         y,

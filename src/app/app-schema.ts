@@ -114,7 +114,7 @@ export const appSchema = defineToolcraft({
             strength: {
               defaultValue: 1.15,
               description:
-                "Increases contrast between sparse and dense dither regions.",
+                "Sharpens the cutoff between sparse and dense dither regions.",
               label: "Strength",
               max: 2.4,
               min: 0.2,
@@ -124,6 +124,21 @@ export const appSchema = defineToolcraft({
               performanceRole: "responsiveness",
               step: 0.05,
               target: "dither.strength",
+              type: "slider",
+            },
+            contrast: {
+              defaultValue: 1,
+              description:
+                "Remaps particle brightness around mid-gray before the low-to-high color ramp.",
+              label: "Contrast",
+              max: 2,
+              min: 0,
+              orderRole: "strength",
+              performanceReason:
+                "Contrast changes per-glyph tone mapping without changing grid size or particle count.",
+              performanceRole: "responsiveness",
+              step: 0.05,
+              target: "dither.contrast",
               type: "slider",
             },
             threshold: {

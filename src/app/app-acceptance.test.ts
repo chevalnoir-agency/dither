@@ -3142,6 +3142,7 @@ describe("Toolcraft template app acceptance coverage", () => {
       "pattern.density",
       "motion.speed",
       "dither.strength",
+      "dither.contrast",
       "dither.threshold",
       "export.includeBackground",
       "appearance.background",

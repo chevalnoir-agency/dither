@@ -377,7 +377,7 @@ export const appTransferMode: ToolcraftTransferMode = {
       },
     ],
     behaviorDecomposition:
-      "The reference decomposes into a fixed black canvas, dense ASCII grid cells, dark negative-space islands, diagonal/wave dither bands, particle glyph families, and a forward timeline-driven density/contrast breathing loop. The generated app maps those behaviors through procedural cells, deterministic organic noise, timeline loop progress, particle type selection, density/scale/spacing/dither controls, and export-at-current-time output.",
+      "The reference decomposes into a fixed black canvas, dense ASCII grid cells, dark negative-space islands, diagonal/wave dither bands, particle glyph families, and a forward timeline-driven density/contrast breathing loop. The generated app maps those behaviors through procedural cells, deterministic organic noise, timeline loop progress, particle type selection, density/scale/spacing/dither/contrast controls, and export-at-current-time output.",
     extractionEvidence:
       "ffprobe was unavailable, so AVFoundation metadata via mdls recorded 11.88166666666667s at 2036x1436 with H.264. avconvert produced short clips at 0, 2, 4, 6, 8, and 10 seconds, Quick Look generated frame PNGs in docs/toolcraft/reference-video-frames, and contact-sheet.png was reviewed before implementation.",
     referenceLocation:
@@ -482,9 +482,9 @@ export const appProductReadiness: ToolcraftProductReadiness = {
   mode: "product",
   productName: "CHEVAL NOIR DITHER",
   productSummary:
-    "Generates animated procedural ASCII/dither patterns with selectable particle glyphs, density, scale, spacing, motion speed, dither strength, threshold, SVG still export, PNG/JPG image export, and MP4/WebM video export.",
+    "Generates animated procedural ASCII/dither patterns with selectable particle glyphs, density, scale, spacing, motion speed, dither strength, contrast, threshold, SVG still export, PNG/JPG image export, and MP4/WebM video export.",
   requestedBehavior:
-    "Create CHEVAL NOIR DITHER: an app that randomly generates the ASCII motif style from the reference video, reproduces the animation, lets the user choose cross or mini-dot particles, tune density, spacing, animation speed, scale, dither strength, and dither threshold, then export still SVG images and MP4 video animation.",
+    "Create CHEVAL NOIR DITHER: an app that randomly generates the ASCII motif style from the reference video, reproduces the animation, lets the user choose cross or mini-dot particles, tune density, spacing, animation speed, scale, dither strength, contrast, and dither threshold, then export still SVG images and MP4 video animation.",
 };
 
 export const appAcceptance: readonly ToolcraftComponentAcceptance[] = [
@@ -584,6 +584,22 @@ export const appAcceptance: readonly ToolcraftComponentAcceptance[] = [
     target: "dither.strength",
     userAction:
       "Drag Strength and verify live product output changes during the drag.",
+  },
+  {
+    automated: true,
+    automatedTestName: "dither contrast changes particle tone range",
+    browser: true,
+    browserTestName: "browser: dither controls change ASCII output",
+    componentType: "slider",
+    evidence: "product-output",
+    expectedObservable:
+      "Dragging Contrast remaps particle brightness between the weak and strong CHEVAL NOIR colors without changing glyph size.",
+    fixture: "mid-density ASCII pattern fixture with visible particle tone range",
+    id: "dither.contrast",
+    kind: "control",
+    target: "dither.contrast",
+    userAction:
+      "Drag Contrast and verify live product output changes during the drag.",
   },
   {
     automated: true,
@@ -827,8 +843,8 @@ export const starterControlSectionInventory: readonly ToolcraftControlSectionInv
   {
     entity: "Dither response",
     groupingReason:
-      "Strength and threshold together define the cutoff and contrast of visible particles.",
-    targets: ["dither.strength", "dither.threshold"],
+      "Strength, contrast, and threshold together define the cutoff and tone response of visible particles.",
+    targets: ["dither.strength", "dither.contrast", "dither.threshold"],
     title: "Dither",
   },
   {

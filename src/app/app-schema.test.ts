@@ -130,6 +130,9 @@ describe("appSchema", () => {
     const backgroundSection = appSchema.panels.controls?.sections.find(
       (section) => section.title === "Background",
     );
+    const ditherSection = appSchema.panels.controls?.sections.find(
+      (section) => section.title === "Dither",
+    );
 
     expect(patternSection?.controls.spacing).toMatchObject({
       defaultValue: 0,
@@ -146,10 +149,21 @@ describe("appSchema", () => {
       target: "appearance.background",
       type: "color",
     });
+    expect(ditherSection?.controls.contrast).toMatchObject({
+      defaultValue: 1,
+      label: "Contrast",
+      max: 2,
+      min: 0,
+      step: 0.05,
+      target: "dither.contrast",
+      type: "slider",
+    });
     expect(ASCII_PARTICLE_LOW_COLOR).toBe("#222629");
     expect(ASCII_PARTICLE_HIGH_COLOR).toBe("#BEBDC1");
     expect(getAsciiParticleColor(0)).toBe("#222629");
     expect(getAsciiParticleColor(1)).toBe("#BEBDC1");
+    expect(getAsciiParticleColor(0.35, 0)).toBe(getAsciiParticleColor(0.5, 1));
+    expect(getAsciiParticleColor(0.35, 2)).not.toBe(getAsciiParticleColor(0.35, 1));
   });
 
   it("uses playback timeline without keyframe behavior", () => {
@@ -192,6 +206,7 @@ describe("appSchema", () => {
         "density changes visible particle count",
         "speed changes timeline-driven field drift",
         "dither strength changes contrast",
+        "dither contrast changes particle tone range",
         "dither threshold changes particle cutoff",
         "background color changes preview and exports",
         "include background controls preview png alpha and video background",
@@ -222,6 +237,7 @@ describe("appSchema", () => {
         "particle type select changes glyph family within budget",
         "speed drag keeps timeline preview responsive",
         "dither strength drag keeps preview responsive",
+        "contrast drag keeps preview responsive",
         "include background toggle stays responsive",
         "background color change stays responsive",
         "image format select stays responsive",

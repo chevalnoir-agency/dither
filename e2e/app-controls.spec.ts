@@ -352,6 +352,9 @@ test("browser: dither controls change ASCII output", async ({ page }) => {
     await dragToolcraftSliderToValue(page, "Strength", 0.2);
   });
   await expectToolcraftProductObservableToChange(page, async () => {
+    await dragToolcraftSliderToValue(page, "Contrast", 0);
+  });
+  await expectToolcraftProductObservableToChange(page, async () => {
     await dragToolcraftSliderToValue(page, "Threshold", 0.25);
   });
 });
@@ -624,6 +627,17 @@ test("browser perf: strength control drag stays responsive", async ({ page }) =>
   await expect(page.locator("[data-ascii-pattern-canvas]")).toBeVisible();
   expect(result.durationMs).toBeGreaterThan(0);
   expectToolcraftScenarioPerformanceBudget(result, appPerformance, "strength-control-drag");
+});
+
+test("browser perf: contrast control drag stays responsive", async ({ page }) => {
+  await openApp(page);
+  await pausePlayback(page);
+  const result = await measureToolcraftInteraction(page, async () => {
+    await dragToolcraftSliderByLabel(page, "Contrast", 0.85);
+  });
+  await expect(page.locator("[data-ascii-pattern-canvas]")).toBeVisible();
+  expect(result.durationMs).toBeGreaterThan(0);
+  expectToolcraftScenarioPerformanceBudget(result, appPerformance, "contrast-control-drag");
 });
 
 test("browser perf: include background toggle stays responsive", async ({ page }) => {
