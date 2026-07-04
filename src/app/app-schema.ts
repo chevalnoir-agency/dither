@@ -56,12 +56,12 @@ export const appSchema = defineToolcraft({
               type: "slider",
             },
             spacing: {
-              defaultValue: -1,
+              defaultValue: -2,
               description:
                 "Adjusts room between particle centers without enlarging the ASCII marks; negative values make the field tighter.",
               label: "Spacing",
               max: 24,
-              min: -1,
+              min: -3,
               orderRole: "detail",
               performanceReason:
                 "Spacing changes the grid step and total number of particles evaluated per frame.",

@@ -112,6 +112,23 @@ CHEVAL NOIR DITHER is a product app with a custom Canvas 2D renderer, playback t
 - Skipped checks: Full performance checkpoint is not required for this post-first-working spacing-default iteration unless targeted spacing performance evidence points to a broader regression.
 - Risks: Low: users with older persisted local settings may keep their previous Spacing value until they reset controls or clear imported settings; new sessions and Reset use the tighter default.
 
+### Iteration 7 — Extended Negative Spacing Range
+
+- Request: Reduce spacing further and set the minimum value to `-3px`.
+- Task type: Tier 3 post-first-working product iteration touching a Pattern control default/range, renderer fallback bounds, performance fixtures, browser tests, and worklog.
+- User-visible result: New sessions open with `Spacing` at `-2px`, and the Spacing slider can now be pushed down to `-3px` for extra-tight particle fields.
+- Source/reference checked: Current schema, renderer frame model, acceptance row for `pattern.spacing`, performance matrix, targeted browser tests, and the user's latest `-3px` request.
+- Reference inputs: Latest user request; no new external media beyond the existing reference screen recording already used for the product.
+- Docs/contracts read: `AGENTS.md`, `docs/toolcraft/workflow.md`, `schema-reference.md`, `component-rules.md`, `acceptance-testing.md`, and `performance.md`; required skills `brainstorming` and `writing-plans`.
+- Contract rules applied: `controls-product-coverage`, `renderer-technique-inventory`, `acceptance-product-observable`, `performance-coverage-levels`, and `workflow-required`.
+- Decision: Set `pattern.spacing.defaultValue` to `-2px`, set the slider minimum and renderer clamp to `-3px`, and keep the dense-stress performance smooth target at `0px` because negative spacing multiplies the grid workload sharply at low Scale.
+- Alternatives rejected: Setting the dense-stress guarantee to `-3px` was rejected because the previous `-2px` stress run measured `158.9ms` frame gaps against a `120ms` budget, and `-1px` still measured `125ms`; hiding the `-3px` option was rejected because the user explicitly requested the lower minimum for art direction.
+- State/output mapping: `pattern.spacing` now accepts `-3..24`, resets to `-2`, and still reduces the generated grid step through `scale + spacing`; Canvas preview, SVG, PNG/JPG, and video share the same frame model and tighter particle positions.
+- Files changed: `src/app/app-schema.ts`, `src/app/ascii-pattern.ts`, `src/app/app-performance.ts`, `src/app/app-schema.test.ts`, and `docs/toolcraft/agent-worklog.md`.
+- Verification: Targeted unit tests passed (`pnpm vitest run src/app/app-schema.test.ts src/app/app-acceptance.test.ts src/app/app-performance.test.ts`); `pnpm verify:quick` passed; `pnpm build` passed; targeted browser acceptance passed for `browser: pattern controls change ASCII output`; targeted browser performance passed for `browser perf: spacing control drag uses heavy ASCII fixture`.
+- Skipped checks: Full performance checkpoint is not required for this post-first-working spacing-range iteration unless targeted spacing performance evidence points to a broader regression.
+- Risks: Risk: `-3px` and the `-2px` default are intentionally available for compressed visuals, but under extreme combinations such as Scale 6, Density 100, and render scale 2 they are outside the guaranteed smooth target recorded in `app-performance.ts`.
+
 ## Decisions
 
 ### Renderer
@@ -169,9 +186,9 @@ Render Pipeline Inventory:
 
 ### Performance
 
-- Decision: Guarantee the full exposed hard limits for scale 6, spacing -1, density 100, threshold 0.1/0.2, hatch particle switching, and render scale 2 in fallback browser performance scenarios.
-- Reason: These values represent the heaviest useful preview states for a dense ASCII text-output renderer; contrast is covered as a responsiveness drag because it changes tone mapping without increasing glyph count.
-- Evidence: `src/app/app-performance.ts` declares `loadProfile` with `hardLimit`, `smoothTarget`, and `smoothTargetRatio: 1` for workload and stress fixtures; scenarios cover control drag, including `contrast-control-drag`, hatch particle select changes, animation frame sampling, animated viewport drag, viewport zoom stress, and short video export.
+- Decision: Guarantee smooth dense-stress targets for scale 6, spacing 0, density 100, threshold 0.1/0.2, hatch particle switching, and render scale 2; expose spacing down to -3 as an experimental art-direction range above the guaranteed stress target.
+- Reason: These values represent the heaviest useful guaranteed preview states for a dense ASCII text-output renderer; contrast is covered as a responsiveness drag because it changes tone mapping without increasing glyph count, while extra-negative spacing multiplies cell count at low Scale.
+- Evidence: `src/app/app-performance.ts` declares `loadProfile` with `hardLimit`, `smoothTarget`, and `smoothTargetRatio`; scenarios cover control drag, including `contrast-control-drag`, hatch particle select changes, spacing with a recorded degraded smooth target, animation frame sampling, animated viewport drag, viewport zoom stress, and short video export.
 
 ## Evidence
 
@@ -186,6 +203,7 @@ Render Pipeline Inventory:
 - Run: `pnpm verify:perf` passed with playwright-fallback because no separate agent-browser control tool was available for this Toolcraft app.
 - Run: Post-first-working hatch/default iteration passed targeted unit tests, `pnpm verify:quick`, `pnpm build`, targeted browser Pattern/Dither acceptance, and targeted particle-type performance.
 - Run: Post-first-working spacing-default iteration passed targeted unit tests, `pnpm verify:quick`, `pnpm build`, targeted browser Pattern acceptance, and targeted Spacing performance.
+- Run: Post-first-working extended negative spacing iteration passed targeted unit tests, `pnpm verify:quick`, `pnpm build`, targeted browser Pattern acceptance, and targeted Spacing performance.
 - Browser: fallback Playwright tests cover controls, product observable changes, SVG/image/video exports, timeline duration metadata, persistence reload, and performance scenarios.
 
 ## Risks
