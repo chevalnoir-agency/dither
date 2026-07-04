@@ -545,7 +545,7 @@ export const appAcceptance: readonly ToolcraftComponentAcceptance[] = [
     componentType: "slider",
     evidence: "product-output",
     expectedObservable:
-      "Dragging Spacing changes the distance between particle centers without enlarging the glyph marks.",
+      "Dragging Spacing changes the distance between particle centers, with negative spacing tightening the field without enlarging glyph marks.",
     fixture: "dense ASCII pattern fixture with visible particle spacing",
     id: "pattern.spacing",
     kind: "control",

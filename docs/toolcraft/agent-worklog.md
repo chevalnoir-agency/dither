@@ -55,7 +55,7 @@ CHEVAL NOIR DITHER is a product app with a custom Canvas 2D renderer, playback t
 - Contract rules applied: `controls-product-coverage`, `output-export-required`, `renderer-technique-inventory`, `acceptance-product-observable`, `performance-coverage-levels`, `persistence-policy-explicit`, and `workflow-required`.
 - Decision: Add `pattern.spacing` as a built-in slider in the Pattern section; keep the Canvas 2D renderer; use a deterministic multi-octave value-noise field with coordinate warp for organic voids; replace opacity-based particle brightness with direct RGB interpolation between `#222629` and `#BEBDC1`; bump persistence and settings transfer to the `cheval-noir-dither` identity.
 - Alternatives rejected: A custom spacing control was rejected because a built-in slider owns this numeric live value; keeping alpha over white particles was rejected because the requested weak and strong colors need exact rendered particle colors; keeping rectangular macro-cell noise was rejected because the user asked for more organic empty regions; migrating the old persistence key was rejected because the visual defaults need to appear immediately in the current browser.
-- State/output mapping: `pattern.spacing` increases the grid step while `pattern.scale` keeps controlling glyph size; `appearance.background` defaults to `#0A0C11`; each generated glyph receives a concrete interpolated color that Canvas preview and SVG export both consume; timeline progress still drives a seamless forward organic-noise field; `export.includeBackground`, image settings, and video settings keep their existing export behavior.
+- State/output mapping: `pattern.spacing` adjusts the grid step while `pattern.scale` keeps controlling glyph size; `appearance.background` defaults to `#0A0C11`; each generated glyph receives a concrete interpolated color that Canvas preview and SVG export both consume; timeline progress still drives a seamless forward organic-noise field; `export.includeBackground`, image settings, and video settings keep their existing export behavior.
 - Files changed: `index.html`, `src/app/app-schema.ts`, `src/app/ascii-pattern.ts`, `src/app/app-acceptance.ts`, `src/app/app-performance.ts`, `src/app/app-schema.test.ts`, `e2e/app-controls.spec.ts`, and `docs/toolcraft/agent-worklog.md`.
 - Verification: `pnpm verify:quick` passed; `pnpm build` passed; targeted browser acceptance passed for Pattern, Dither, Background/Image Export, SVG/video export, reference motif, and native preview dimensions; targeted browser performance passed for density, scale, spacing, threshold, heavy preview render, heavy animation frame, animated viewport drag, and viewport zoom.
 - Skipped checks: Full performance checkpoint is not required for this post-first-working visual/control iteration unless targeted performance evidence points to a broader regression.
@@ -94,6 +94,23 @@ CHEVAL NOIR DITHER is a product app with a custom Canvas 2D renderer, playback t
 - Verification: Targeted unit tests passed (`pnpm vitest run src/app/app-schema.test.ts src/app/app-acceptance.test.ts src/app/app-performance.test.ts`); `pnpm verify:quick` passed; `pnpm build` passed; targeted browser acceptance passed for Pattern and Dither controls; targeted browser performance passed for `browser perf: particle type select changes glyph family`.
 - Skipped checks: Full performance checkpoint is not required for this post-first-working feature iteration unless targeted hatch rendering evidence points to a broader regression.
 - Risks: Low: hatch Canvas preview uses pixel-step diagonal primitives while SVG exports literal slash/backslash text glyphs, so exact antialiasing differs by export format but the particle family remains semantically identical.
+
+### Iteration 6 — Tighter Default Particle Spacing
+
+- Request: Reduce the default particle spacing because there is still too much space between elements.
+- Task type: Tier 3 post-first-working product iteration touching a Pattern control default/range, renderer workload bounds, acceptance, performance fixtures, browser tests, and worklog.
+- User-visible result: New sessions open with `Spacing` at `-1px`, tightening the default particle grid while keeping the existing Scale value and glyph sizes.
+- Source/reference checked: Current schema, renderer frame model, acceptance matrix, performance matrix, targeted browser tests, and the user's latest spacing request.
+- Reference inputs: Latest user request; no new external media beyond the existing reference screen recording already used for the product.
+- Docs/contracts read: `AGENTS.md`, `docs/toolcraft/workflow.md`, `schema-reference.md`, `component-rules.md`, `acceptance-testing.md`, and `performance.md`; required skills `brainstorming` and `writing-plans`.
+- Contract rules applied: `controls-product-coverage`, `renderer-technique-inventory`, `acceptance-product-observable`, `performance-coverage-levels`, and `workflow-required`.
+- Decision: Keep `Spacing` as the built-in Pattern slider, set its default and minimum to `-1px`, leave the maximum at `24px`, and keep the renderer grid step protected by a minimum cell step so tighter defaults cannot collapse the canvas field.
+- Alternatives rejected: Increasing glyph scale was rejected because the request was about spacing rather than mark size; raising density was rejected because it changes particle survival rather than center distance; `Spacing -2px` was rejected after the targeted performance test measured a `158.9ms` frame gap against a `120ms` budget at the dense `Scale 6`, `Density 100`, render scale 2 fixture.
+- State/output mapping: `pattern.spacing = -1` reduces the generated grid step from `scale + spacing`; the Canvas preview, SVG frame model, PNG/JPG export, and video export all consume the same tighter particle positions.
+- Files changed: `src/app/app-schema.ts`, `src/app/ascii-pattern.ts`, `src/app/app-acceptance.ts`, `src/app/app-performance.ts`, `src/app/app-schema.test.ts`, and `docs/toolcraft/agent-worklog.md`.
+- Verification: Targeted unit tests passed (`pnpm vitest run src/app/app-schema.test.ts src/app/app-acceptance.test.ts src/app/app-performance.test.ts`); `pnpm verify:quick` passed; `pnpm build` passed; targeted browser acceptance passed for `browser: pattern controls change ASCII output`; targeted browser performance passed for `browser perf: spacing control drag uses heavy ASCII fixture`.
+- Skipped checks: Full performance checkpoint is not required for this post-first-working spacing-default iteration unless targeted spacing performance evidence points to a broader regression.
+- Risks: Low: users with older persisted local settings may keep their previous Spacing value until they reset controls or clear imported settings; new sessions and Reset use the tighter default.
 
 ## Decisions
 
@@ -152,7 +169,7 @@ Render Pipeline Inventory:
 
 ### Performance
 
-- Decision: Guarantee the full exposed hard limits for scale 6, spacing 0, density 100, threshold 0.1/0.2, hatch particle switching, and render scale 2 in fallback browser performance scenarios.
+- Decision: Guarantee the full exposed hard limits for scale 6, spacing -1, density 100, threshold 0.1/0.2, hatch particle switching, and render scale 2 in fallback browser performance scenarios.
 - Reason: These values represent the heaviest useful preview states for a dense ASCII text-output renderer; contrast is covered as a responsiveness drag because it changes tone mapping without increasing glyph count.
 - Evidence: `src/app/app-performance.ts` declares `loadProfile` with `hardLimit`, `smoothTarget`, and `smoothTargetRatio: 1` for workload and stress fixtures; scenarios cover control drag, including `contrast-control-drag`, hatch particle select changes, animation frame sampling, animated viewport drag, viewport zoom stress, and short video export.
 
@@ -168,6 +185,7 @@ Render Pipeline Inventory:
 - Run: `pnpm verify:final` passed.
 - Run: `pnpm verify:perf` passed with playwright-fallback because no separate agent-browser control tool was available for this Toolcraft app.
 - Run: Post-first-working hatch/default iteration passed targeted unit tests, `pnpm verify:quick`, `pnpm build`, targeted browser Pattern/Dither acceptance, and targeted particle-type performance.
+- Run: Post-first-working spacing-default iteration passed targeted unit tests, `pnpm verify:quick`, `pnpm build`, targeted browser Pattern acceptance, and targeted Spacing performance.
 - Browser: fallback Playwright tests cover controls, product observable changes, SVG/image/video exports, timeline duration metadata, persistence reload, and performance scenarios.
 
 ## Risks

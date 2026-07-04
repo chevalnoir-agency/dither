@@ -152,10 +152,10 @@ describe("appSchema", () => {
       type: "slider",
     });
     expect(patternSection?.controls.spacing).toMatchObject({
-      defaultValue: 0,
+      defaultValue: -1,
       label: "Spacing",
       max: 24,
-      min: 0,
+      min: -1,
       step: 1,
       target: "pattern.spacing",
       type: "slider",

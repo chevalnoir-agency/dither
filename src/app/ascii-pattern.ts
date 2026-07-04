@@ -54,7 +54,7 @@ const fallbackSettings: AsciiPatternSettings = {
   includeBackground: true,
   particleType: "cross",
   scale: 14,
-  spacing: 0,
+  spacing: -1,
   speed: 1,
   videoFormat: "mp4",
   videoResolution: "current",
@@ -228,7 +228,7 @@ export function getAsciiPatternSettings(state: ToolcraftState): AsciiPatternSett
     includeBackground: shouldIncludeToolcraftPreviewBackground({ state }),
     particleType: readParticleType(state.values["pattern.particleType"]),
     scale: clamp(readNumber(state.values["pattern.scale"], fallbackSettings.scale), 3, 48),
-    spacing: clamp(readNumber(state.values["pattern.spacing"], fallbackSettings.spacing), 0, 48),
+    spacing: clamp(readNumber(state.values["pattern.spacing"], fallbackSettings.spacing), -1, 48),
     speed: clamp(readNumber(state.values["motion.speed"], fallbackSettings.speed), 0, 4),
     videoFormat: readVideoFormat(state.values["export.video.format"]),
     videoResolution: readString(

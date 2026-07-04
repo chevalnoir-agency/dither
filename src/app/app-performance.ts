@@ -186,7 +186,7 @@ export const appPerformance: ToolcraftPerformanceConfig = defineToolcraftPerform
         decision:
           "Canvas 2D stays the selected renderer because the product primitive is text glyph composition plus SVG still export; WebGL would still need CPU text layout or a glyph atlas and would not improve SVG output quality.",
         fixture:
-          "heavy-animation-frame with scale 6, spacing 0, density 100, threshold 0.2, renderScale 2",
+          "heavy-animation-frame with scale 6, spacing -1, density 100, threshold 0.2, renderScale 2",
         measuredResult:
           "The measured comparison is for renderer fit: Canvas 2D exercises direct text/glyph primitives in the performance checkpoint, while the WebGL candidate adds glyph-atlas setup without removing the text-layout pass.",
         scenarioId: "heavy-animation-frame",
@@ -241,7 +241,7 @@ export const appPerformance: ToolcraftPerformanceConfig = defineToolcraftPerform
         value: 100,
       },
       target: "pattern.density",
-      values: { default: 68, max: 100, min: 12 },
+      values: { default: 70, max: 100, min: 12 },
       workload: true,
       workloadFixture: {
         kind: "custom",
@@ -319,25 +319,25 @@ export const appPerformance: ToolcraftPerformanceConfig = defineToolcraftPerform
       expectedObservable:
         "Dragging Spacing to the tightest particle grid keeps the product canvas responsive.",
       fixture:
-        "density 100, scale 6, threshold 0.2, renderScale 2 baseline with spacing dragged to 0",
+        "density 100, scale 6, threshold 0.2, renderScale 2 baseline with spacing dragged to -1",
       id: "spacing-control-drag",
       interaction: "control-drag",
       stressFixture: {
         kind: "max-value",
         loadProfile: {
-          hardLimit: 0,
+          hardLimit: -1,
           metric: "numeric-min",
-          smoothTarget: 0,
+          smoothTarget: -1,
           smoothTargetRatio: 1,
           target: "pattern.spacing",
           userFacingRange: "fully-guaranteed",
         },
         reason:
-          "Spacing 0 is the tightest particle grid and therefore the highest glyph count.",
-        value: 0,
+          "Spacing -1 is the tightest particle grid and therefore the highest glyph count.",
+        value: -1,
       },
       target: "pattern.spacing",
-      values: { default: 0, max: 24, min: 0 },
+      values: { default: -1, max: 24, min: -1 },
       workload: true,
       workloadFixture: {
         kind: "custom",
