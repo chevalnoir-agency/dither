@@ -30,6 +30,7 @@ export const appSchema = defineToolcraft({
               options: [
                 { label: "Crosses", value: "cross" },
                 { label: "Mini dots", value: "dot" },
+                { label: "Hachures", value: "hatch" },
                 { label: "Mixed", value: "mixed" },
               ],
               orderRole: "mode",
@@ -40,7 +41,7 @@ export const appSchema = defineToolcraft({
               type: "select",
             },
             scale: {
-              defaultValue: 12,
+              defaultValue: 14,
               description:
                 "Sets the drawn particle size; smaller values create finer ASCII marks.",
               label: "Scale",
@@ -71,7 +72,7 @@ export const appSchema = defineToolcraft({
               unit: "px",
             },
             density: {
-              defaultValue: 68,
+              defaultValue: 70,
               description:
                 "Controls how many cells survive the random dither mask.",
               label: "Density",
@@ -112,7 +113,7 @@ export const appSchema = defineToolcraft({
         {
           controls: {
             strength: {
-              defaultValue: 1.15,
+              defaultValue: 1.6,
               description:
                 "Sharpens the cutoff between sparse and dense dither regions.",
               label: "Strength",
@@ -127,7 +128,7 @@ export const appSchema = defineToolcraft({
               type: "slider",
             },
             contrast: {
-              defaultValue: 1,
+              defaultValue: 2,
               description:
                 "Remaps particle brightness around mid-gray before the low-to-high color ramp.",
               label: "Contrast",
@@ -142,7 +143,7 @@ export const appSchema = defineToolcraft({
               type: "slider",
             },
             threshold: {
-              defaultValue: 0.46,
+              defaultValue: 0.6,
               description:
                 "Moves the cutoff between black gaps and visible ASCII particles.",
               label: "Threshold",

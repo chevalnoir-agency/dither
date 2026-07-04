@@ -5,7 +5,7 @@ import {
   type ToolcraftState,
 } from "@/toolcraft/runtime";
 
-export type AsciiParticleType = "cross" | "dot" | "mixed";
+export type AsciiParticleType = "cross" | "dot" | "hatch" | "mixed";
 
 export type AsciiPatternSettings = {
   background: string;
@@ -45,15 +45,15 @@ export const ASCII_PARTICLE_HIGH_COLOR = "#BEBDC1";
 
 const fallbackSettings: AsciiPatternSettings = {
   background: "#0A0C11",
-  density: 68,
-  ditherContrast: 1,
-  ditherStrength: 1.15,
-  ditherThreshold: 0.46,
+  density: 70,
+  ditherContrast: 2,
+  ditherStrength: 1.6,
+  ditherThreshold: 0.6,
   imageFormat: "png",
   imageResolution: "4k",
   includeBackground: true,
   particleType: "cross",
-  scale: 12,
+  scale: 14,
   spacing: 0,
   speed: 1,
   videoFormat: "mp4",
@@ -91,7 +91,9 @@ function readColorHex(value: unknown, fallback: string): string {
 }
 
 function readParticleType(value: unknown): AsciiParticleType {
-  return value === "dot" || value === "mixed" || value === "cross" ? value : "cross";
+  return value === "dot" || value === "hatch" || value === "mixed" || value === "cross"
+    ? value
+    : "cross";
 }
 
 function readImageFormat(value: unknown): "jpg" | "png" {
@@ -178,9 +180,15 @@ function getGlyphForCell(
   particleType: AsciiParticleType,
   intensity: number,
   jitter: number,
+  column: number,
+  row: number,
 ): string {
   if (particleType === "dot") {
     return ".";
+  }
+
+  if (particleType === "hatch") {
+    return (column + row + Math.floor(jitter * 4)) % 2 === 0 ? "/" : "\\";
   }
 
   if (particleType === "cross") {
@@ -325,7 +333,7 @@ export function createAsciiPatternFrame({
       }
 
       glyphs.push({
-        char: getGlyphForCell(settings.particleType, intensity, mask),
+        char: getGlyphForCell(settings.particleType, intensity, mask, column, row),
         color: getAsciiParticleColor(
           clamp(visibility * 0.86 + intensity * 0.14, 0, 1),
           settings.ditherContrast,
@@ -365,6 +373,42 @@ export function drawAsciiPatternFrame(
       const thickness = Math.max(1, glyph.size * 0.14);
       context.fillRect(glyph.x - length / 2, glyph.y - thickness / 2, length, thickness);
       context.fillRect(glyph.x - thickness / 2, glyph.y - length / 2, thickness, length);
+      continue;
+    }
+
+    if (glyph.char === "/" || glyph.char === "\\") {
+      const markSize = Math.max(1, glyph.size * 0.18);
+      const halfMark = markSize / 2;
+      const offset = glyph.size * 0.28;
+      if (glyph.char === "/") {
+        context.fillRect(
+          glyph.x - offset - halfMark,
+          glyph.y + offset - halfMark,
+          markSize,
+          markSize,
+        );
+        context.fillRect(glyph.x - halfMark, glyph.y - halfMark, markSize, markSize);
+        context.fillRect(
+          glyph.x + offset - halfMark,
+          glyph.y - offset - halfMark,
+          markSize,
+          markSize,
+        );
+      } else {
+        context.fillRect(
+          glyph.x - offset - halfMark,
+          glyph.y - offset - halfMark,
+          markSize,
+          markSize,
+        );
+        context.fillRect(glyph.x - halfMark, glyph.y - halfMark, markSize, markSize);
+        context.fillRect(
+          glyph.x + offset - halfMark,
+          glyph.y + offset - halfMark,
+          markSize,
+          markSize,
+        );
+      }
       continue;
     }
 

@@ -6,7 +6,7 @@ This file records product decisions and the evidence behind them.
 
 Mode: product
 
-CHEVAL NOIR DITHER is a product app with a custom Canvas 2D renderer, playback timeline, product controls including particle spacing and contrast, SVG/PNG/JPG/video exports, persistence, acceptance coverage, and performance coverage.
+CHEVAL NOIR DITHER is a product app with a custom Canvas 2D renderer, playback timeline, product controls including particle spacing, contrast, and diagonal hatch particles, SVG/PNG/JPG/video exports, persistence, acceptance coverage, and performance coverage.
 
 ## Decision Trail
 
@@ -78,6 +78,23 @@ CHEVAL NOIR DITHER is a product app with a custom Canvas 2D renderer, playback t
 - Skipped checks: Full performance checkpoint is not required for this post-first-working non-performance edit because the targeted renderer/control path passed and the new slider does not increase glyph count, canvas size, render scale, or export resolution.
 - Risks: None: the default value `1` preserves the existing tonal output until the user edits the new control.
 
+### Iteration 5 — Default Tuning And Hatch Particles
+
+- Request: Set default Threshold to `0.6`, Contrast to `2`, Strength to `1.6`, Density to `70%`, Scale to `14`, and add diagonal hatches as a particle type.
+- Task type: Tier 3 post-first-working product iteration touching schema defaults, renderer glyph generation, Canvas/SVG/video/image export frame output, acceptance, performance, browser tests, and worklog.
+- User-visible result: New sessions open with the requested denser, higher-contrast CHEVAL NOIR DITHER defaults, and the Particle dropdown includes `Hachures` for diagonal hatch marks.
+- Source/reference checked: Current schema, renderer frame model, Canvas/SVG export path, acceptance matrix, performance matrix, targeted browser tests, and the existing reference-video study.
+- Reference inputs: Existing screen recording `/Users/pierrevoisin/Desktop/Enregistrement de l’écran 2026-07-04 à 10.20.45.mov`, extracted reference frames, and latest user request for specific defaults plus diagonal hatches.
+- Docs/contracts read: `AGENTS.md`, `docs/toolcraft/workflow.md`, `schema-reference.md`, `component-rules.md`, `acceptance-testing.md`, `renderer-technique.md`, and `performance.md`; required skills `brainstorming` and `writing-plans`.
+- Contract rules applied: `controls-product-coverage`, `output-export-required`, `renderer-technique-inventory`, `acceptance-product-observable`, `performance-coverage-levels`, `persistence-policy-explicit`, and `workflow-required`.
+- Decision: Keep the existing Pattern and Dither sections, update only resettable `defaultValue` entries and renderer fallbacks, add `hatch` as a built-in select option labeled `Hachures`, and draw hatches as lightweight pixel-step diagonal Canvas marks while SVG still exports the ASCII slash/backslash glyphs from the shared frame model.
+- Alternatives rejected: A custom particle picker was rejected because the built-in select already owns this product choice; changing the scale or spacing semantics was rejected because the user requested new defaults rather than new control behavior; drawing hatches through per-glyph canvas rotation or stroke paths was rejected because pixel-step marks are simpler and lighter under dense stress fixtures.
+- State/output mapping: `pattern.particleType = "hatch"` alternates `/` and `\` marks per generated cell; `pattern.scale`, `pattern.density`, `dither.strength`, `dither.contrast`, and `dither.threshold` now reset to `14`, `70`, `1.6`, `2`, and `0.6`; Canvas preview, SVG, PNG/JPG, and video share the same generated hatch frame.
+- Files changed: `src/app/app-schema.ts`, `src/app/ascii-pattern.ts`, `src/app/app-acceptance.ts`, `src/app/app-performance.ts`, `src/app/app-schema.test.ts`, `e2e/app-controls.spec.ts`, and `docs/toolcraft/agent-worklog.md`.
+- Verification: Targeted unit tests passed (`pnpm vitest run src/app/app-schema.test.ts src/app/app-acceptance.test.ts src/app/app-performance.test.ts`); `pnpm verify:quick` passed; `pnpm build` passed; targeted browser acceptance passed for Pattern and Dither controls; targeted browser performance passed for `browser perf: particle type select changes glyph family`.
+- Skipped checks: Full performance checkpoint is not required for this post-first-working feature iteration unless targeted hatch rendering evidence points to a broader regression.
+- Risks: Low: hatch Canvas preview uses pixel-step diagonal primitives while SVG exports literal slash/backslash text glyphs, so exact antialiasing differs by export format but the particle family remains semantically identical.
+
 ## Decisions
 
 ### Renderer
@@ -125,7 +142,7 @@ Render Pipeline Inventory:
 
 - Decision: Product controls are grouped as Pattern, Motion, Dither, Background, Image Export, Video Export, and sticky Export actions.
 - Reason: Each section maps to a product entity or workflow stage rather than control type; Background directly precedes export settings as required.
-- Evidence: `starterControlSectionInventory` in `src/app/app-acceptance.ts` mirrors the schema targets including `pattern.spacing` and `dither.contrast`; every visible control has `performanceRole`, `defaultValue`, and an acceptance row.
+- Evidence: `starterControlSectionInventory` in `src/app/app-acceptance.ts` mirrors the schema targets including `pattern.spacing`, `pattern.particleType`, and `dither.contrast`; every visible control has `performanceRole`, `defaultValue`, and an acceptance row, and the Particle select covers Crosses, Mini dots, Hachures, and Mixed.
 
 ### Export
 
@@ -135,9 +152,9 @@ Render Pipeline Inventory:
 
 ### Performance
 
-- Decision: Guarantee the full exposed hard limits for scale 6, spacing 0, density 100, threshold 0.1/0.2, and render scale 2 in fallback browser performance scenarios.
+- Decision: Guarantee the full exposed hard limits for scale 6, spacing 0, density 100, threshold 0.1/0.2, hatch particle switching, and render scale 2 in fallback browser performance scenarios.
 - Reason: These values represent the heaviest useful preview states for a dense ASCII text-output renderer; contrast is covered as a responsiveness drag because it changes tone mapping without increasing glyph count.
-- Evidence: `src/app/app-performance.ts` declares `loadProfile` with `hardLimit`, `smoothTarget`, and `smoothTargetRatio: 1` for workload and stress fixtures; scenarios cover control drag, including `contrast-control-drag`, animation frame sampling, animated viewport drag, viewport zoom stress, and short video export.
+- Evidence: `src/app/app-performance.ts` declares `loadProfile` with `hardLimit`, `smoothTarget`, and `smoothTargetRatio: 1` for workload and stress fixtures; scenarios cover control drag, including `contrast-control-drag`, hatch particle select changes, animation frame sampling, animated viewport drag, viewport zoom stress, and short video export.
 
 ## Evidence
 
@@ -150,6 +167,7 @@ Render Pipeline Inventory:
 - Run: `pnpm ai:check` passed.
 - Run: `pnpm verify:final` passed.
 - Run: `pnpm verify:perf` passed with playwright-fallback because no separate agent-browser control tool was available for this Toolcraft app.
+- Run: Post-first-working hatch/default iteration passed targeted unit tests, `pnpm verify:quick`, `pnpm build`, targeted browser Pattern/Dither acceptance, and targeted particle-type performance.
 - Browser: fallback Playwright tests cover controls, product observable changes, SVG/image/video exports, timeline duration metadata, persistence reload, and performance scenarios.
 
 ## Risks

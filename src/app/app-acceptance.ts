@@ -482,9 +482,9 @@ export const appProductReadiness: ToolcraftProductReadiness = {
   mode: "product",
   productName: "CHEVAL NOIR DITHER",
   productSummary:
-    "Generates animated procedural ASCII/dither patterns with selectable particle glyphs, density, scale, spacing, motion speed, dither strength, contrast, threshold, SVG still export, PNG/JPG image export, and MP4/WebM video export.",
+    "Generates animated procedural ASCII/dither patterns with selectable particle glyphs including diagonal hatches, density, scale, spacing, motion speed, dither strength, contrast, threshold, SVG still export, PNG/JPG image export, and MP4/WebM video export.",
   requestedBehavior:
-    "Create CHEVAL NOIR DITHER: an app that randomly generates the ASCII motif style from the reference video, reproduces the animation, lets the user choose cross or mini-dot particles, tune density, spacing, animation speed, scale, dither strength, contrast, and dither threshold, then export still SVG images and MP4 video animation.",
+    "Create CHEVAL NOIR DITHER: an app that randomly generates the ASCII motif style from the reference video, reproduces the animation, lets the user choose cross, mini-dot, mixed, or diagonal hatch particles, tune density, spacing, animation speed, scale, dither strength, contrast, and dither threshold, then export still SVG images and MP4 video animation.",
 };
 
 export const appAcceptance: readonly ToolcraftComponentAcceptance[] = [
@@ -496,14 +496,14 @@ export const appAcceptance: readonly ToolcraftComponentAcceptance[] = [
     componentType: "select",
     evidence: "product-output",
     expectedObservable:
-      "Selecting Crosses, Mini dots, and Mixed changes the rendered ASCII glyph family in the canvas output.",
+      "Selecting Crosses, Mini dots, Hachures, and Mixed changes the rendered ASCII glyph family in the canvas output.",
     fixture: "default ASCII pattern with visible dither cells",
     id: "pattern.particleType",
     kind: "control",
-    optionCoverage: ["cross", "dot", "mixed"],
+    optionCoverage: ["cross", "dot", "hatch", "mixed"],
     target: "pattern.particleType",
     userAction:
-      "Open the Particle dropdown, choose Mini dots, then Mixed, and observe the product canvas output change.",
+      "Open the Particle dropdown, choose Mini dots, Hachures, then Mixed, and observe the product canvas output change.",
   },
   {
     automated: true,

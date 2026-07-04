@@ -123,7 +123,7 @@ describe("appSchema", () => {
     expect(appSchema.panels.timeline?.mode).toBe("playback");
   });
 
-  it("declares CHEVAL NOIR defaults and particle spacing", () => {
+  it("declares CHEVAL NOIR defaults, particle spacing, and hatch particles", () => {
     const patternSection = appSchema.panels.controls?.sections.find(
       (section) => section.title === "Pattern",
     );
@@ -134,6 +134,23 @@ describe("appSchema", () => {
       (section) => section.title === "Dither",
     );
 
+    expect(patternSection?.controls.particleType).toMatchObject({
+      defaultValue: "cross",
+      label: "Particle",
+      options: [
+        { label: "Crosses", value: "cross" },
+        { label: "Mini dots", value: "dot" },
+        { label: "Hachures", value: "hatch" },
+        { label: "Mixed", value: "mixed" },
+      ],
+      target: "pattern.particleType",
+      type: "select",
+    });
+    expect(patternSection?.controls.scale).toMatchObject({
+      defaultValue: 14,
+      target: "pattern.scale",
+      type: "slider",
+    });
     expect(patternSection?.controls.spacing).toMatchObject({
       defaultValue: 0,
       label: "Spacing",
@@ -144,18 +161,34 @@ describe("appSchema", () => {
       type: "slider",
       unit: "px",
     });
+    expect(patternSection?.controls.density).toMatchObject({
+      defaultValue: 70,
+      target: "pattern.density",
+      type: "slider",
+      unit: "%",
+    });
     expect(backgroundSection?.controls.background).toMatchObject({
       defaultValue: { hex: "#0A0C11" },
       target: "appearance.background",
       type: "color",
     });
+    expect(ditherSection?.controls.strength).toMatchObject({
+      defaultValue: 1.6,
+      target: "dither.strength",
+      type: "slider",
+    });
     expect(ditherSection?.controls.contrast).toMatchObject({
-      defaultValue: 1,
+      defaultValue: 2,
       label: "Contrast",
       max: 2,
       min: 0,
       step: 0.05,
       target: "dither.contrast",
+      type: "slider",
+    });
+    expect(ditherSection?.controls.threshold).toMatchObject({
+      defaultValue: 0.6,
+      target: "dither.threshold",
       type: "slider",
     });
     expect(ASCII_PARTICLE_LOW_COLOR).toBe("#222629");

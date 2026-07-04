@@ -132,6 +132,10 @@ function particleOptionLabel(value: string): string {
     return "Mixed";
   }
 
+  if (value === "hatch") {
+    return "Hachures";
+  }
+
   return "Crosses";
 }
 
@@ -328,6 +332,9 @@ test("browser: pattern controls change ASCII output", async ({ page }) => {
 
   await expectToolcraftProductObservableToChange(page, async () => {
     await chooseSelectInField(page, "Particle", "Mini dots");
+  });
+  await expectToolcraftProductObservableToChange(page, async () => {
+    await chooseSelectInField(page, "Particle", "Hachures");
   });
   await expectToolcraftProductObservableToChange(page, async () => {
     await chooseSelectInField(page, "Particle", "Mixed");

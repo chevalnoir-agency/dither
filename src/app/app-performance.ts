@@ -480,7 +480,7 @@ export const appPerformance: ToolcraftPerformanceConfig = defineToolcraftPerform
       },
       target: "timeline.playback",
       values: {
-        default: { density: 68, renderScale: 1, scale: 12, threshold: 0.46 },
+        default: { density: 70, renderScale: 1, scale: 14, threshold: 0.6 },
         max: { density: 100, renderScale: 2, scale: 6, threshold: 0.2 },
         min: { density: 12, renderScale: 1, scale: 28, threshold: 0.9 },
       },
@@ -518,7 +518,7 @@ export const appPerformance: ToolcraftPerformanceConfig = defineToolcraftPerform
       },
       target: "canvas.viewport",
       values: {
-        default: { density: 68, renderScale: 1, scale: 12, threshold: 0.46 },
+        default: { density: 70, renderScale: 1, scale: 14, threshold: 0.6 },
         max: { density: 100, renderScale: 2, scale: 6, threshold: 0.2 },
         min: { density: 12, renderScale: 1, scale: 28, threshold: 0.9 },
       },
@@ -556,7 +556,7 @@ export const appPerformance: ToolcraftPerformanceConfig = defineToolcraftPerform
       },
       target: "canvas.zoom",
       values: {
-        default: { density: 68, renderScale: 1, scale: 12, threshold: 0.46 },
+        default: { density: 70, renderScale: 1, scale: 14, threshold: 0.6 },
         max: { density: 100, renderScale: 2, scale: 6, threshold: 0.2 },
         min: { density: 12, renderScale: 1, scale: 28, threshold: 0.9 },
       },
@@ -611,25 +611,25 @@ export const appPerformance: ToolcraftPerformanceConfig = defineToolcraftPerform
       controlLabel: "Particle",
       expectedObservable:
         "Changing the Particle select swaps the glyph family without stalling the ASCII preview.",
-      fixture: "default ASCII preview with particle type changed to Mixed",
+      fixture: "default ASCII preview with particle type changed to Hachures",
       id: "particle-type-control-change",
       interaction: "control-change",
       stressFixture: {
         kind: "max-value",
         loadProfile: {
-          hardLimit: "mixed",
+          hardLimit: "hatch",
           metric: "custom",
-          smoothTarget: "mixed",
+          smoothTarget: "hatch",
           smoothTargetRatio: 1,
           target: "pattern.particleType",
           userFacingRange: "fully-guaranteed",
         },
         reason:
-          "Mixed mode draws both particle families and is the fullest glyph-family workload exposed by the select.",
-        value: "mixed",
+          "Hachures exercises the diagonal glyph draw path across the full grid.",
+        value: "hatch",
       },
       target: "pattern.particleType",
-      values: { default: "cross", max: "mixed", min: "dot" },
+      values: { default: "cross", max: "hatch", min: "dot" },
       workload: true,
       workloadFixture: {
         kind: "custom",
