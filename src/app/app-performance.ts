@@ -322,7 +322,7 @@ export const appPerformance: ToolcraftPerformanceConfig = defineToolcraftPerform
       expectedObservable:
         "Dragging Spacing to the tightest particle grid keeps the product canvas responsive.",
       fixture:
-        "density 100, scale 6, threshold 0.2, renderScale 2 baseline with spacing dragged to 0 smooth target; -3 remains an exposed creative hard limit",
+        "density 100, scale 6, threshold 0.2, renderScale 2 baseline with spacing dragged to 0 smooth target; -8 remains an exposed creative hard limit",
       id: "spacing-control-drag",
       interaction: "control-drag",
       stressFixture: {
@@ -333,7 +333,7 @@ export const appPerformance: ToolcraftPerformanceConfig = defineToolcraftPerform
             {
               attemptedTarget: -2,
               decision:
-                "Keep -2 as the visual default and -3 exposed for art-directed compression, but do not mark either as the dense-stress smooth target.",
+                "Keep -2 as the visual default and lower negative values exposed for art-directed compression, but do not mark them as the dense-stress smooth target.",
               measuredResult:
                 "At spacing -2 with density 100, scale 6, threshold 0.2, and render scale 2, maxFrameGapMs measured 158.9 against the 120ms budget.",
               optimizationAttempted:
@@ -353,7 +353,7 @@ export const appPerformance: ToolcraftPerformanceConfig = defineToolcraftPerform
               scenarioId: "spacing-control-drag",
             },
           ],
-          hardLimit: -3,
+          hardLimit: -8,
           metric: "numeric-min",
           smoothTarget: 0,
           smoothTargetRatio: 0.8,
@@ -365,7 +365,7 @@ export const appPerformance: ToolcraftPerformanceConfig = defineToolcraftPerform
         value: 0,
       },
       target: "pattern.spacing",
-      values: { default: -2, max: 24, min: -3 },
+      values: { default: -2, max: 24, min: -8 },
       workload: true,
       workloadFixture: {
         kind: "custom",

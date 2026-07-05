@@ -163,6 +163,23 @@ CHEVAL NOIR DITHER is a product app with a custom Canvas 2D renderer, playback t
 - Skipped checks: Targeted Voids performance is unchanged for this range extension because the workload stress remains `Voids = 0`; full performance checkpoint is not required for this post-first-working non-performance edit.
 - Risks: None: the default value and densest workload case stay unchanged.
 
+### Iteration 10 — Extended Spacing Minimum To -8
+
+- Request: Reduce the Spacing control minimum from `-3px` to `-8px`.
+- Task type: Tier 3 post-first-working product iteration touching a Pattern control range, renderer fallback bounds, browser acceptance coverage, performance metadata, and worklog.
+- User-visible result: The Pattern `Spacing` slider now spans `-8px..24px`, while the default remains `-2px` so new sessions keep the current tighter look and users gain an extra-compressed range.
+- Source/reference checked: Current schema, renderer grid-step clamp, acceptance row for `pattern.spacing`, browser Pattern control test, performance matrix, and the user's latest spacing-range request.
+- Reference inputs: Latest user request; no new external media beyond the existing reference screen recording already used for the product.
+- Docs/contracts read: `AGENTS.md`, `docs/toolcraft/workflow.md`, `schema-reference.md`, `component-rules.md`, `acceptance-testing.md`, `renderer-technique.md`, and `performance.md`; required skills `brainstorming` and `writing-plans`.
+- Contract rules applied: `controls-product-coverage`, `renderer-technique-inventory`, `acceptance-product-observable`, `performance-coverage-levels`, and `workflow-required`.
+- Decision: Keep `pattern.spacing` as the same built-in continuous slider, change its schema minimum and renderer clamp from `-3` to `-8`, and keep the dense-stress smooth target at `0` because measured lower negative values already exceed the guaranteed dense preview budget.
+- Alternatives rejected: Changing the default from `-2px` was rejected because the request is a range extension; guaranteeing `-8px` under the dense stress fixture was rejected because previous `-2px` and `-1px` evidence already showed the smooth target should remain `0px`; changing Scale semantics was rejected because Spacing should affect center distance without enlarging glyph marks.
+- State/output mapping: `pattern.spacing` values down to `-8` flow through `getAsciiPatternSettings` into `createAsciiPatternFrame`, where `gridStep = Math.max(3, scale + spacing)` controls particle-center distance for Canvas preview, SVG, PNG/JPG, and video export.
+- Files changed: `src/app/app-schema.ts`, `src/app/ascii-pattern.ts`, `src/app/app-performance.ts`, `src/app/app-schema.test.ts`, `e2e/app-controls.spec.ts`, and `docs/toolcraft/agent-worklog.md`.
+- Verification: Targeted unit tests passed (`pnpm vitest run src/app/app-schema.test.ts src/app/app-acceptance.test.ts src/app/app-performance.test.ts`); `pnpm verify:quick` passed; `pnpm build` passed; targeted browser acceptance passed for `browser: pattern controls change ASCII output`; targeted browser performance passed for `browser perf: spacing control drag uses heavy ASCII fixture`.
+- Skipped checks: Full performance checkpoint is not required for this post-first-working spacing-range iteration because targeted spacing performance covers the touched workload and the first working product checkpoint already passed.
+- Risks: Risk: `-8px` is intentionally available for compressed visuals, but under extreme combinations such as Scale 6, Density 100, and render scale 2 it is outside the guaranteed smooth target recorded in `app-performance.ts`.
+
 ## Decisions
 
 ### Renderer
@@ -220,7 +237,7 @@ Render Pipeline Inventory:
 
 ### Performance
 
-- Decision: Guarantee smooth dense-stress targets for scale 6, spacing 0, voids 0, density 100, threshold 0.1/0.2, hatch particle switching, and render scale 2; expose spacing down to -3 as an experimental art-direction range above the guaranteed stress target.
+- Decision: Guarantee smooth dense-stress targets for scale 6, spacing 0, voids 0, density 100, threshold 0.1/0.2, hatch particle switching, and render scale 2; expose spacing down to -8 as an experimental art-direction range above the guaranteed stress target.
 - Reason: These values represent the heaviest useful guaranteed preview states for a dense ASCII text-output renderer; contrast is covered as a responsiveness drag because it changes tone mapping without increasing glyph count, while extra-negative spacing and lower void values can multiply visible glyph count at low Scale.
 - Evidence: `src/app/app-performance.ts` declares `loadProfile` with `hardLimit`, `smoothTarget`, and `smoothTargetRatio`; scenarios cover control drag, including `contrast-control-drag`, `voids-control-drag`, hatch particle select changes, spacing with a recorded degraded smooth target, animation frame sampling, animated viewport drag, viewport zoom stress, and short video export.
 
@@ -239,6 +256,7 @@ Render Pipeline Inventory:
 - Run: Post-first-working spacing-default iteration passed targeted unit tests, `pnpm verify:quick`, `pnpm build`, targeted browser Pattern acceptance, and targeted Spacing performance.
 - Run: Post-first-working extended negative spacing iteration passed targeted unit tests, `pnpm verify:quick`, `pnpm build`, targeted browser Pattern acceptance, and targeted Spacing performance.
 - Run: Post-first-working organic void-control iteration passed targeted unit tests, `pnpm verify:quick`, `pnpm build`, targeted browser Pattern acceptance, and targeted Voids performance.
+- Run: Post-first-working `-8px` spacing-range iteration passed targeted unit tests, `pnpm verify:quick`, `pnpm build`, targeted browser Pattern acceptance, and targeted Spacing performance.
 - Browser: fallback Playwright tests cover controls, product observable changes, SVG/image/video exports, timeline duration metadata, persistence reload, and performance scenarios.
 
 ## Risks

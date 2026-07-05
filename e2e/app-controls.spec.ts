@@ -351,7 +351,7 @@ test("browser: pattern controls change ASCII output", async ({ page }) => {
   });
   await dragToolcraftSliderToValue(page, "Density", 100);
   await expectToolcraftProductObservableToChange(page, async () => {
-    await dragToolcraftSliderByLabel(page, "Spacing", 0.9);
+    await dragToolcraftSliderToValue(page, "Spacing", -8);
   });
 });
 

@@ -61,7 +61,7 @@ export const appSchema = defineToolcraft({
                 "Adjusts room between particle centers without enlarging the ASCII marks; negative values make the field tighter.",
               label: "Spacing",
               max: 24,
-              min: -3,
+              min: -8,
               orderRole: "detail",
               performanceReason:
                 "Spacing changes the grid step and total number of particles evaluated per frame.",

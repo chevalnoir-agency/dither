@@ -155,7 +155,7 @@ describe("appSchema", () => {
       defaultValue: -2,
       label: "Spacing",
       max: 24,
-      min: -3,
+      min: -8,
       step: 1,
       target: "pattern.spacing",
       type: "slider",

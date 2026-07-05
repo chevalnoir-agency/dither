@@ -230,7 +230,7 @@ export function getAsciiPatternSettings(state: ToolcraftState): AsciiPatternSett
     includeBackground: shouldIncludeToolcraftPreviewBackground({ state }),
     particleType: readParticleType(state.values["pattern.particleType"]),
     scale: clamp(readNumber(state.values["pattern.scale"], fallbackSettings.scale), 3, 48),
-    spacing: clamp(readNumber(state.values["pattern.spacing"], fallbackSettings.spacing), -3, 48),
+    spacing: clamp(readNumber(state.values["pattern.spacing"], fallbackSettings.spacing), -8, 48),
     speed: clamp(readNumber(state.values["motion.speed"], fallbackSettings.speed), 0, 4),
     videoFormat: readVideoFormat(state.values["export.video.format"]),
     videoResolution: readString(
