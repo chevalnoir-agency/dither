@@ -237,7 +237,7 @@ export function getAsciiPatternSettings(state: ToolcraftState): AsciiPatternSett
       state.values["export.video.resolution"],
       fallbackSettings.videoResolution,
     ),
-    voids: clamp(readNumber(state.values["pattern.voids"], fallbackSettings.voids), 0, 2),
+    voids: clamp(readNumber(state.values["pattern.voids"], fallbackSettings.voids), 0, 5),
   };
 }
 

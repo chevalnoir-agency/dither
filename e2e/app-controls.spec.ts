@@ -343,10 +343,11 @@ test("browser: pattern controls change ASCII output", async ({ page }) => {
     await dragToolcraftSliderByLabel(page, "Scale", 0.1);
   });
   await expectToolcraftProductObservableToChange(page, async () => {
-    await dragToolcraftSliderByLabel(page, "Voids", 0);
+    await dragToolcraftSliderToValue(page, "Voids", 5);
   });
+  await dragToolcraftSliderToValue(page, "Voids", 0);
   await expectToolcraftProductObservableToChange(page, async () => {
-    await dragToolcraftSliderByLabel(page, "Density", 0);
+    await dragToolcraftSliderToValue(page, "Density", 12);
   });
   await dragToolcraftSliderToValue(page, "Density", 100);
   await expectToolcraftProductObservableToChange(page, async () => {
@@ -986,7 +987,7 @@ test("browser perf: voids control drag uses heavy ASCII fixture", async ({ page 
     "[data-ascii-pattern-canvas]",
     2,
   );
-  await dragToolcraftSliderToValue(page, "Voids", 2);
+  await dragToolcraftSliderToValue(page, "Voids", 5);
   const result = await measureToolcraftInteraction(page, async () => {
     await dragToolcraftSliderToPerformanceStressValue(
       page,

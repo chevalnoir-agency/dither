@@ -76,7 +76,7 @@ export const appSchema = defineToolcraft({
               description:
                 "Controls how strongly the organic noise carves random empty zones through the particle field.",
               label: "Voids",
-              max: 2,
+              max: 5,
               min: 0,
               orderRole: "detail",
               performanceReason:

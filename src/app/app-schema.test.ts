@@ -164,7 +164,7 @@ describe("appSchema", () => {
     expect(patternSection?.controls.voids).toMatchObject({
       defaultValue: 1,
       label: "Voids",
-      max: 2,
+      max: 5,
       min: 0,
       step: 0.05,
       target: "pattern.voids",

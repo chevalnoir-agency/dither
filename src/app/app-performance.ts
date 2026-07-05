@@ -414,7 +414,7 @@ export const appPerformance: ToolcraftPerformanceConfig = defineToolcraftPerform
         value: 0,
       },
       target: "pattern.voids",
-      values: { default: 1, max: 2, min: 0 },
+      values: { default: 1, max: 5, min: 0 },
       workload: true,
       workloadFixture: {
         kind: "custom",

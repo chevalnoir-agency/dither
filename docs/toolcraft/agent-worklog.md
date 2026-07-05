@@ -146,6 +146,23 @@ CHEVAL NOIR DITHER is a product app with a custom Canvas 2D renderer, playback t
 - Skipped checks: Full performance checkpoint is not required for this post-first-working void-control iteration because the targeted renderer/control path passed and the first working product checkpoint already passed.
 - Risks: Risk: Pushing `Voids` to `0` intentionally reduces organic gaps and can make dense low-scale scenes heavier, so `pattern.voids` is listed as a workload target with its own heavy drag scenario.
 
+### Iteration 9 — Extended Voids Range
+
+- Request: Extend the `Voids` control maximum to `5`.
+- Task type: Tier 3 post-first-working product iteration touching a Pattern control range, renderer clamp, acceptance/browser test coverage, performance metadata, and worklog.
+- User-visible result: The Pattern `Voids` slider now spans `0..5`, giving stronger high-end organic empty-zone carving while preserving default `1`.
+- Source/reference checked: Current schema, renderer settings clamp, browser Pattern control test, performance matrix, and the user's latest range request.
+- Reference inputs: Latest user request; no new external media beyond the existing reference screen recording already used for the product.
+- Docs/contracts read: `AGENTS.md`, `docs/toolcraft/workflow.md`, `schema-reference.md`, `component-rules.md`, `acceptance-testing.md`, and `performance.md`; required skills `brainstorming` and `writing-plans`.
+- Contract rules applied: `controls-product-coverage`, `renderer-technique-inventory`, `acceptance-product-observable`, `performance-coverage-levels`, and `workflow-required`.
+- Decision: Keep `pattern.voids` as the same built-in continuous slider, change its schema maximum and renderer clamp from `2` to `5`, and keep the dense performance stress target at `0` because lower Voids remains the heaviest visible particle case.
+- Alternatives rejected: Adding a second “extreme voids” mode was rejected because the request is a direct range extension; changing the default from `1` was rejected because the user asked only for the maximum; moving the perf stress to `5` was rejected because high Voids removes more glyphs rather than increasing renderer load.
+- State/output mapping: `pattern.voids` values up to `5` flow through `getAsciiPatternSettings` into `createAsciiPatternFrame`, where the organic void mask shifts and scales empty regions for Canvas preview, SVG, PNG/JPG, and video export.
+- Files changed: `src/app/app-schema.ts`, `src/app/ascii-pattern.ts`, `src/app/app-schema.test.ts`, `src/app/app-performance.ts`, `e2e/app-controls.spec.ts`, and `docs/toolcraft/agent-worklog.md`.
+- Verification: Targeted unit tests passed (`pnpm vitest run src/app/app-schema.test.ts src/app/app-acceptance.test.ts src/app/app-performance.test.ts`); `pnpm verify:quick` passed; `pnpm build` passed; targeted browser acceptance passed for `browser: pattern controls change ASCII output`.
+- Skipped checks: Targeted Voids performance is unchanged for this range extension because the workload stress remains `Voids = 0`; full performance checkpoint is not required for this post-first-working non-performance edit.
+- Risks: None: the default value and densest workload case stay unchanged.
+
 ## Decisions
 
 ### Renderer
