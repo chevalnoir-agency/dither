@@ -3139,6 +3139,7 @@ describe("Toolcraft template app acceptance coverage", () => {
       "pattern.particleType",
       "pattern.scale",
       "pattern.spacing",
+      "pattern.voids",
       "pattern.density",
       "motion.speed",
       "dither.strength",

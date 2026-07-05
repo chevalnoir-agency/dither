@@ -71,6 +71,21 @@ export const appSchema = defineToolcraft({
               type: "slider",
               unit: "px",
             },
+            voids: {
+              defaultValue: 1,
+              description:
+                "Controls how strongly the organic noise carves random empty zones through the particle field.",
+              label: "Voids",
+              max: 2,
+              min: 0,
+              orderRole: "detail",
+              performanceReason:
+                "Voids changes the organic mask and can increase visible particle count when reduced.",
+              performanceRole: "workload",
+              step: 0.05,
+              target: "pattern.voids",
+              type: "slider",
+            },
             density: {
               defaultValue: 70,
               description:

@@ -17,6 +17,7 @@ export const appPerformance: ToolcraftPerformanceConfig = defineToolcraftPerform
         targets: [
           "pattern.scale",
           "pattern.spacing",
+          "pattern.voids",
           "pattern.density",
           "dither.threshold",
           "dither.strength",
@@ -80,6 +81,7 @@ export const appPerformance: ToolcraftPerformanceConfig = defineToolcraftPerform
           "pattern.particleType",
           "pattern.scale",
           "pattern.spacing",
+          "pattern.voids",
           "pattern.density",
           "dither.strength",
           "dither.contrast",
@@ -94,6 +96,7 @@ export const appPerformance: ToolcraftPerformanceConfig = defineToolcraftPerform
           "pattern.particleType",
           "pattern.scale",
           "pattern.spacing",
+          "pattern.voids",
           "pattern.density",
           "dither.strength",
           "dither.contrast",
@@ -377,6 +380,55 @@ export const appPerformance: ToolcraftPerformanceConfig = defineToolcraftPerform
         reason:
           "Maximum density, small scale, low threshold, and render scale 2 create the heaviest useful baseline before measuring spacing.",
         value: { density: 100, renderScale: 2, scale: 6, threshold: 0.2 },
+      },
+    },
+    {
+      automated: true,
+      automatedTestName: "voids control drag remains responsive under dense ASCII load",
+      browser: true,
+      browserTestName: "browser perf: voids control drag uses heavy ASCII fixture",
+      budget: {
+        maxFrameGapMs: 120,
+        maxInteractionMs: 1500,
+        maxLongTaskMs: 220,
+      },
+      controlLabel: "Voids",
+      expectedObservable:
+        "Dragging Voids changes organic empty-zone strength while preserving preview responsiveness.",
+      fixture:
+        "density 100, scale 6, spacing 0, threshold 0.2, renderScale 2 baseline with voids dragged to 0",
+      id: "voids-control-drag",
+      interaction: "control-drag",
+      stressFixture: {
+        kind: "max-value",
+        loadProfile: {
+          hardLimit: 0,
+          metric: "numeric-min",
+          smoothTarget: 0,
+          smoothTargetRatio: 1,
+          target: "pattern.voids",
+          userFacingRange: "fully-guaranteed",
+        },
+        reason:
+          "Voids 0 removes organic gaps and produces the densest visible particle field for this control.",
+        value: 0,
+      },
+      target: "pattern.voids",
+      values: { default: 1, max: 2, min: 0 },
+      workload: true,
+      workloadFixture: {
+        kind: "custom",
+        loadProfile: {
+          hardLimit: { density: 100, renderScale: 2, scale: 6, spacing: 0, threshold: 0.2 },
+          metric: "custom",
+          smoothTarget: { density: 100, renderScale: 2, scale: 6, spacing: 0, threshold: 0.2 },
+          smoothTargetRatio: 1,
+          target: "combined-heavy-preview",
+          userFacingRange: "fully-guaranteed",
+        },
+        reason:
+          "Maximum density, small scale, guaranteed-smooth spacing, low threshold, and render scale 2 create the heavy baseline before measuring void strength.",
+        value: { density: 100, renderScale: 2, scale: 6, spacing: 0, threshold: 0.2 },
       },
     },
     {
@@ -954,6 +1006,7 @@ export const appPerformance: ToolcraftPerformanceConfig = defineToolcraftPerform
     "pattern.particleType",
     "pattern.scale",
     "pattern.spacing",
+    "pattern.voids",
     "pattern.density",
     "dither.threshold",
     "export.image.resolution",

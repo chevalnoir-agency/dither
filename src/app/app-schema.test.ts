@@ -161,6 +161,15 @@ describe("appSchema", () => {
       type: "slider",
       unit: "px",
     });
+    expect(patternSection?.controls.voids).toMatchObject({
+      defaultValue: 1,
+      label: "Voids",
+      max: 2,
+      min: 0,
+      step: 0.05,
+      target: "pattern.voids",
+      type: "slider",
+    });
     expect(patternSection?.controls.density).toMatchObject({
       defaultValue: 70,
       target: "pattern.density",
@@ -216,6 +225,7 @@ describe("appSchema", () => {
         "pattern.particleType",
         "pattern.scale",
         "pattern.spacing",
+        "pattern.voids",
         "pattern.density",
         "dither.threshold",
         "export.image.resolution",
@@ -236,6 +246,7 @@ describe("appSchema", () => {
         "particle type changes ASCII glyph output",
         "scale changes ASCII grid resolution",
         "spacing changes particle separation",
+        "voids change organic empty zones",
         "density changes visible particle count",
         "speed changes timeline-driven field drift",
         "dither strength changes contrast",
@@ -261,6 +272,7 @@ describe("appSchema", () => {
         "density control drag remains responsive under heavy ASCII load",
         "scale control drag remains responsive under dense ASCII load",
         "spacing control drag remains responsive under dense ASCII load",
+        "voids control drag remains responsive under dense ASCII load",
         "threshold control drag remains responsive under heavy ASCII load",
         "resolution scale drag preserves backing pixels and responsiveness",
         "heavy ASCII animation frame budget stays smooth",

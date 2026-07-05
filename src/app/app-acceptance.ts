@@ -482,9 +482,9 @@ export const appProductReadiness: ToolcraftProductReadiness = {
   mode: "product",
   productName: "CHEVAL NOIR DITHER",
   productSummary:
-    "Generates animated procedural ASCII/dither patterns with selectable particle glyphs including diagonal hatches, density, scale, spacing, motion speed, dither strength, contrast, threshold, SVG still export, PNG/JPG image export, and MP4/WebM video export.",
+    "Generates animated procedural ASCII/dither patterns with selectable particle glyphs including diagonal hatches, density, scale, spacing, organic void zones, motion speed, dither strength, contrast, threshold, SVG still export, PNG/JPG image export, and MP4/WebM video export.",
   requestedBehavior:
-    "Create CHEVAL NOIR DITHER: an app that randomly generates the ASCII motif style from the reference video, reproduces the animation, lets the user choose cross, mini-dot, mixed, or diagonal hatch particles, tune density, spacing, animation speed, scale, dither strength, contrast, and dither threshold, then export still SVG images and MP4 video animation.",
+    "Create CHEVAL NOIR DITHER: an app that randomly generates the ASCII motif style from the reference video, reproduces the animation, lets the user choose cross, mini-dot, mixed, or diagonal hatch particles, tune density, spacing, random organic void zones, animation speed, scale, dither strength, contrast, and dither threshold, then export still SVG images and MP4 video animation.",
 };
 
 export const appAcceptance: readonly ToolcraftComponentAcceptance[] = [
@@ -552,6 +552,22 @@ export const appAcceptance: readonly ToolcraftComponentAcceptance[] = [
     target: "pattern.spacing",
     userAction:
       "Drag the Spacing slider and verify live product output changes during the drag.",
+  },
+  {
+    automated: true,
+    automatedTestName: "voids change organic empty zones",
+    browser: true,
+    browserTestName: "browser: pattern controls change ASCII output",
+    componentType: "slider",
+    evidence: "product-output",
+    expectedObservable:
+      "Dragging Voids changes the strength and spread of random organic empty zones in the ASCII particle field.",
+    fixture: "dense ASCII pattern fixture with visible organic void zones",
+    id: "pattern.voids",
+    kind: "control",
+    target: "pattern.voids",
+    userAction:
+      "Drag the Voids slider and verify live product output changes during the drag.",
   },
   {
     automated: true,
@@ -829,8 +845,14 @@ export const starterControlSectionInventory: readonly ToolcraftControlSectionInv
   {
     entity: "ASCII particle field",
     groupingReason:
-      "Particle family, scale, spacing, and density together define the visible ASCII grid structure.",
-    targets: ["pattern.particleType", "pattern.scale", "pattern.spacing", "pattern.density"],
+      "Particle family, scale, spacing, void amount, and density together define the visible ASCII grid structure and negative-space islands.",
+    targets: [
+      "pattern.particleType",
+      "pattern.scale",
+      "pattern.spacing",
+      "pattern.voids",
+      "pattern.density",
+    ],
     title: "Pattern",
   },
   {

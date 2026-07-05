@@ -343,8 +343,12 @@ test("browser: pattern controls change ASCII output", async ({ page }) => {
     await dragToolcraftSliderByLabel(page, "Scale", 0.1);
   });
   await expectToolcraftProductObservableToChange(page, async () => {
-    await dragToolcraftSliderByLabel(page, "Density", 0.9);
+    await dragToolcraftSliderByLabel(page, "Voids", 0);
   });
+  await expectToolcraftProductObservableToChange(page, async () => {
+    await dragToolcraftSliderByLabel(page, "Density", 0);
+  });
+  await dragToolcraftSliderToValue(page, "Density", 100);
   await expectToolcraftProductObservableToChange(page, async () => {
     await dragToolcraftSliderByLabel(page, "Spacing", 0.9);
   });
@@ -955,6 +959,44 @@ test("browser perf: spacing control drag uses heavy ASCII fixture", async ({ pag
   });
   expect(result.durationMs).toBeGreaterThan(0);
   expectToolcraftScenarioPerformanceBudget(result, appPerformance, "spacing-control-drag");
+});
+
+test("browser perf: voids control drag uses heavy ASCII fixture", async ({ page }) => {
+  await openApp(page);
+  await pausePlayback(page);
+  await applyToolcraftPerformanceWorkloadFixture(page, appPerformance, "voids-control-drag", {
+    density: async (value) => {
+      await dragToolcraftSliderToValue(page, "Density", Number(value));
+    },
+    renderScale: async (value) => {
+      await dragToolcraftSliderToValue(page, "Resolution scale", Number(value));
+    },
+    scale: async (value) => {
+      await dragToolcraftSliderToValue(page, "Scale", Number(value));
+    },
+    spacing: async (value) => {
+      await dragToolcraftSliderToValue(page, "Spacing", Number(value));
+    },
+    threshold: async (value) => {
+      await dragToolcraftSliderToValue(page, "Threshold", Number(value));
+    },
+  });
+  await expectToolcraftCanvasBackingPixelsForRenderScale(
+    page,
+    "[data-ascii-pattern-canvas]",
+    2,
+  );
+  await dragToolcraftSliderToValue(page, "Voids", 2);
+  const result = await measureToolcraftInteraction(page, async () => {
+    await dragToolcraftSliderToPerformanceStressValue(
+      page,
+      "Voids",
+      appPerformance,
+      "voids-control-drag",
+    );
+  });
+  expect(result.durationMs).toBeGreaterThan(0);
+  expectToolcraftScenarioPerformanceBudget(result, appPerformance, "voids-control-drag");
 });
 
 test("browser perf: threshold control drag uses heavy ASCII fixture", async ({ page }) => {

@@ -22,6 +22,7 @@ export type AsciiPatternSettings = {
   speed: number;
   videoFormat: "mp4" | "webm";
   videoResolution: string;
+  voids: number;
 };
 
 export type AsciiGlyph = {
@@ -58,6 +59,7 @@ const fallbackSettings: AsciiPatternSettings = {
   speed: 1,
   videoFormat: "mp4",
   videoResolution: "current",
+  voids: 1,
 };
 
 function clamp(value: number, min: number, max: number): number {
@@ -235,6 +237,7 @@ export function getAsciiPatternSettings(state: ToolcraftState): AsciiPatternSett
       state.values["export.video.resolution"],
       fallbackSettings.videoResolution,
     ),
+    voids: clamp(readNumber(state.values["pattern.voids"], fallbackSettings.voids), 0, 2),
   };
 }
 
@@ -274,6 +277,7 @@ export function createAsciiPatternFrame({
   const density = settings.density / 100;
   const threshold = settings.ditherThreshold;
   const cutoffStrength = settings.ditherStrength;
+  const voidAmount = settings.voids;
   const travel = settings.speed * 8;
   const driftX = Math.cos(phase) * travel;
   const driftY = Math.sin(phase) * travel * 0.7;
@@ -300,10 +304,14 @@ export function createAsciiPatternFrame({
         2,
       );
       const edgeNoise = valueNoise(gridX * 0.32 - driftY, gridY * 0.32 + driftX, 31);
-      const voidField = smoothstep(
-        0.54,
-        0.82,
-        organicVoid + (organicDetail - 0.5) * 0.28 + (edgeNoise - 0.5) * 0.2,
+      const rawVoidField =
+        organicVoid + (organicDetail - 0.5) * 0.28 + (edgeNoise - 0.5) * 0.2;
+      const voidThresholdShift = (voidAmount - 1) * 0.12;
+      const voidField = clamp(
+        smoothstep(0.54 - voidThresholdShift, 0.82 - voidThresholdShift, rawVoidField) *
+          voidAmount,
+        0,
+        1,
       );
       const nx = gridX * 0.066;
       const ny = gridY * 0.066;
