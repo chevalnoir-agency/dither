@@ -22,6 +22,44 @@ export const appSchema = defineToolcraft({
       sections: [
         {
           controls: {
+            image: {
+              accept: "image/*",
+              assetKind: "image",
+              defaultValue: null,
+              description:
+                "Uses the uploaded image luminance as the dither source when no video source is present.",
+              label: "Image",
+              orderRole: "input",
+              performanceReason:
+                "Uploading a source image adds a media decode and source-sampling pass used by preview and exports.",
+              performanceRole: "responsiveness",
+              target: "source.image",
+              type: "fileDrop",
+            },
+          },
+          title: "Source Image",
+        },
+        {
+          controls: {
+            video: {
+              accept: "video/*",
+              assetKind: "file",
+              defaultValue: null,
+              description:
+                "Uses uploaded video frames as the animated dither source; when present it overrides Image.",
+              label: "Video",
+              orderRole: "input",
+              performanceReason:
+                "Uploading a source video adds a media decode and frame-sampling pass used by preview and video exports.",
+              performanceRole: "responsiveness",
+              target: "source.video",
+              type: "fileDrop",
+            },
+          },
+          title: "Source Video",
+        },
+        {
+          controls: {
             particleType: {
               defaultValue: "cross",
               description:
@@ -145,13 +183,13 @@ export const appSchema = defineToolcraft({
             contrast: {
               defaultValue: 2,
               description:
-                "Remaps particle brightness around mid-gray before the low-to-high color ramp.",
-              label: "Contrast",
+                "Adds visual depth by separating weak and strong particles through both tone and apparent size.",
+              label: "Depth",
               max: 2,
               min: 0,
               orderRole: "strength",
               performanceReason:
-                "Contrast changes per-glyph tone mapping without changing grid size or particle count.",
+                "Depth changes per-glyph tone and size without changing grid size or particle count.",
               performanceRole: "responsiveness",
               step: 0.05,
               target: "dither.contrast",

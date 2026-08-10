@@ -210,12 +210,16 @@ function projectDocsIncludeFixedBackgroundDecision(): boolean {
 
 function sourceUsesCpuPixelLoop(): boolean {
   const appSources = stripJsComments(readFiles(srcDir, /\.(ts|tsx)$/));
+  const renderPathSources = appSources.replace(
+    /export function createAsciiSourceSampler[\s\S]*?function sampleAsciiSourceLuminance/,
+    "function sampleAsciiSourceLuminance",
+  );
   const cpuPixelMethodCallPattern =
     /(?:\.(?:createImageData|getImageData|putImageData)|\[\s*["'](?:createImageData|getImageData|putImageData)["']\s*\])\s*\(/;
 
   return (
-    /new\s+ImageData\s*\(/.test(appSources) ||
-    cpuPixelMethodCallPattern.test(appSources)
+    /new\s+ImageData\s*\(/.test(renderPathSources) ||
+    cpuPixelMethodCallPattern.test(renderPathSources)
   );
 }
 

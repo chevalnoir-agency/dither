@@ -377,7 +377,7 @@ export const appTransferMode: ToolcraftTransferMode = {
       },
     ],
     behaviorDecomposition:
-      "The reference decomposes into a fixed black canvas, dense ASCII grid cells, dark negative-space islands, diagonal/wave dither bands, particle glyph families, and a forward timeline-driven density/contrast breathing loop. The generated app maps those behaviors through procedural cells, deterministic organic noise, timeline loop progress, particle type selection, density/scale/spacing/dither/contrast controls, and export-at-current-time output.",
+      "The reference decomposes into a fixed black canvas, dense ASCII grid cells, dark negative-space islands, diagonal/wave dither bands, particle glyph families, and a forward timeline-driven density/depth breathing loop. The generated app maps those behaviors through procedural cells, deterministic organic noise, timeline loop progress, particle type selection, density/scale/spacing/dither/depth controls, and export-at-current-time output.",
     extractionEvidence:
       "ffprobe was unavailable, so AVFoundation metadata via mdls recorded 11.88166666666667s at 2036x1436 with H.264. avconvert produced short clips at 0, 2, 4, 6, 8, and 10 seconds, Quick Look generated frame PNGs in docs/toolcraft/reference-video-frames, and contact-sheet.png was reviewed before implementation.",
     referenceLocation:
@@ -482,12 +482,45 @@ export const appProductReadiness: ToolcraftProductReadiness = {
   mode: "product",
   productName: "CHEVAL NOIR DITHER",
   productSummary:
-    "Generates animated procedural ASCII/dither patterns with selectable particle glyphs including diagonal hatches, density, scale, spacing, organic void zones, motion speed, dither strength, contrast, threshold, SVG still export, PNG/JPG image export, and MP4/WebM video export.",
+    "Generates animated procedural, source-image, or source-video ASCII/dither patterns with selectable particle glyphs including diagonal hatches, density, scale, spacing, organic void zones, motion speed, dither strength, contrast, threshold, SVG still export, PNG/JPG image export, and MP4/WebM video export.",
   requestedBehavior:
-    "Create CHEVAL NOIR DITHER: an app that randomly generates the ASCII motif style from the reference video, reproduces the animation, lets the user choose cross, mini-dot, mixed, or diagonal hatch particles, tune density, spacing, random organic void zones, animation speed, scale, dither strength, contrast, and dither threshold, then export still SVG images and MP4 video animation.",
+    "Create CHEVAL NOIR DITHER: an app that randomly generates the ASCII motif style from the reference video or applies the same effect to an uploaded source image or video, reproduces the animation, lets the user choose cross, mini-dot, mixed, or diagonal hatch particles, tune density, spacing, random organic void zones, animation speed, scale, dither strength, contrast, and dither threshold, then export still SVG images and MP4 video animation.",
 };
 
 export const appAcceptance: readonly ToolcraftComponentAcceptance[] = [
+  {
+    automated: true,
+    automatedTestName: "source image upload clear reset and transforms update dither output",
+    browser: true,
+    browserTestName: "browser: source image upload clear reset and transforms update dither output",
+    componentType: "fileDrop",
+    evidence: "media-lifecycle",
+    expectedObservable:
+      "Uploading a source image changes the media preview and rendered ASCII dither output; rotate and flip actions update runtime media transform metadata used by the renderer and exports; Clear, section reset, and global Reset remove the source image and restore the procedural output.",
+    fixture: "high-contrast source image fixture with asymmetric luminance regions",
+    id: "source.image",
+    kind: "control",
+    target: "source.image",
+    userAction:
+      "Upload a source image, rotate it, flip it, clear it, upload again, then use section reset and Reset controls while observing the rendered output.",
+  },
+  {
+    automated: true,
+    automatedTestName: "source video upload clear reset and timeline frames update dither output",
+    browser: true,
+    browserTestName: "browser: source video upload clear reset and timeline frames update dither output",
+    componentType: "fileDrop",
+    evidence: "media-lifecycle",
+    expectedObservable:
+      "Uploading a source video changes the file list and rendered ASCII dither output; low-contrast frames are auto-leveled into visible particles; timeline scrub samples different video frames; SVG and video exports consume the video source; clear, section reset, and global Reset remove the video source and restore image/procedural fallback output.",
+    fixture:
+      "short high-contrast and low-contrast source video fixtures with changing luminance regions",
+    id: "source.video",
+    kind: "control",
+    target: "source.video",
+    userAction:
+      "Upload a source video, scrub the timeline, export SVG and Video, remove it, upload again, then use section reset and Reset controls while observing the rendered output.",
+  },
   {
     automated: true,
     automatedTestName: "particle type changes ASCII glyph output",
@@ -603,19 +636,19 @@ export const appAcceptance: readonly ToolcraftComponentAcceptance[] = [
   },
   {
     automated: true,
-    automatedTestName: "dither contrast changes particle tone range",
+    automatedTestName: "dither depth changes particle scale and tone separation",
     browser: true,
     browserTestName: "browser: dither controls change ASCII output",
     componentType: "slider",
     evidence: "product-output",
     expectedObservable:
-      "Dragging Contrast remaps particle brightness between the weak and strong CHEVAL NOIR colors without changing glyph size.",
+      "Dragging Depth separates weak and strong particles through tone and apparent size, from a flatter field at 0 to maximum depth at 2.",
     fixture: "mid-density ASCII pattern fixture with visible particle tone range",
     id: "dither.contrast",
     kind: "control",
     target: "dither.contrast",
     userAction:
-      "Drag Contrast and verify live product output changes during the drag.",
+      "Drag Depth and verify particle tone and apparent size separation change in the live output.",
   },
   {
     automated: true,
@@ -843,6 +876,26 @@ export const appAcceptance: readonly ToolcraftComponentAcceptance[] = [
 
 export const starterControlSectionInventory: readonly ToolcraftControlSectionInventoryEntry[] = [
   {
+    entity: "Source image",
+    groupingReason:
+      "The image upload owns still source material and remains the fallback when no source video is present.",
+    splitReason:
+      "Image and video uploads share the source workflow but need distinct visible section titles because fileDrop boxes do not render their schema labels inside the empty drop zone.",
+    targets: ["source.image"],
+    title: "Source Image",
+    workflowStage: "still-source",
+  },
+  {
+    entity: "Source video",
+    groupingReason:
+      "The video upload owns animated source material and overrides the still image while present.",
+    splitReason:
+      "Image and video uploads share the source workflow but need distinct visible section titles because fileDrop boxes do not render their schema labels inside the empty drop zone.",
+    targets: ["source.video"],
+    title: "Source Video",
+    workflowStage: "animated-source",
+  },
+  {
     entity: "ASCII particle field",
     groupingReason:
       "Particle family, scale, spacing, void amount, and density together define the visible ASCII grid structure and negative-space islands.",
@@ -865,7 +918,7 @@ export const starterControlSectionInventory: readonly ToolcraftControlSectionInv
   {
     entity: "Dither response",
     groupingReason:
-      "Strength, contrast, and threshold together define the cutoff and tone response of visible particles.",
+      "Strength, depth, and threshold together define the cutoff, tone, and apparent front-to-back separation of visible particles.",
     targets: ["dither.strength", "dither.contrast", "dither.threshold"],
     title: "Dither",
   },

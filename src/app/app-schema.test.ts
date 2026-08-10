@@ -7,6 +7,7 @@ import {
   ASCII_PARTICLE_HIGH_COLOR,
   ASCII_PARTICLE_LOW_COLOR,
   getAsciiParticleColor,
+  getAsciiParticleDepthScale,
 } from "./ascii-pattern";
 
 describe("appSchema", () => {
@@ -111,6 +112,8 @@ describe("appSchema", () => {
 
     expect(appSchema.panels.controls?.sections[0]?.title).toBe("Setup");
     expect(productSections.map((section) => section.title)).toEqual([
+      "Source Image",
+      "Source Video",
       "Pattern",
       "Motion",
       "Dither",
@@ -124,6 +127,12 @@ describe("appSchema", () => {
   });
 
   it("declares CHEVAL NOIR defaults, particle spacing, and hatch particles", () => {
+    const sourceImageSection = appSchema.panels.controls?.sections.find(
+      (section) => section.title === "Source Image",
+    );
+    const sourceVideoSection = appSchema.panels.controls?.sections.find(
+      (section) => section.title === "Source Video",
+    );
     const patternSection = appSchema.panels.controls?.sections.find(
       (section) => section.title === "Pattern",
     );
@@ -134,6 +143,22 @@ describe("appSchema", () => {
       (section) => section.title === "Dither",
     );
 
+    expect(sourceImageSection?.controls.image).toMatchObject({
+      accept: "image/*",
+      assetKind: "image",
+      defaultValue: null,
+      label: "Image",
+      target: "source.image",
+      type: "fileDrop",
+    });
+    expect(sourceVideoSection?.controls.video).toMatchObject({
+      accept: "video/*",
+      assetKind: "file",
+      defaultValue: null,
+      label: "Video",
+      target: "source.video",
+      type: "fileDrop",
+    });
     expect(patternSection?.controls.particleType).toMatchObject({
       defaultValue: "cross",
       label: "Particle",
@@ -188,7 +213,7 @@ describe("appSchema", () => {
     });
     expect(ditherSection?.controls.contrast).toMatchObject({
       defaultValue: 2,
-      label: "Contrast",
+      label: "Depth",
       max: 2,
       min: 0,
       step: 0.05,
@@ -204,8 +229,11 @@ describe("appSchema", () => {
     expect(ASCII_PARTICLE_HIGH_COLOR).toBe("#BEBDC1");
     expect(getAsciiParticleColor(0)).toBe("#222629");
     expect(getAsciiParticleColor(1)).toBe("#BEBDC1");
-    expect(getAsciiParticleColor(0.35, 0)).toBe(getAsciiParticleColor(0.5, 1));
-    expect(getAsciiParticleColor(0.35, 2)).not.toBe(getAsciiParticleColor(0.35, 1));
+    expect(getAsciiParticleColor(0.35, 0)).toBe(getAsciiParticleColor(0.5, 0));
+    expect(getAsciiParticleColor(0.35, 2)).not.toBe(getAsciiParticleColor(0.35, 0));
+    expect(getAsciiParticleDepthScale(0.2, 0)).toBe(1);
+    expect(getAsciiParticleDepthScale(0.2, 2)).toBeLessThan(1);
+    expect(getAsciiParticleDepthScale(0.8, 2)).toBeGreaterThan(1);
   });
 
   it("uses playback timeline without keyframe behavior", () => {
@@ -243,6 +271,8 @@ describe("appSchema", () => {
 
     expect(acceptanceTestNames).toEqual(
       expect.arrayContaining([
+        "source image upload clear reset and transforms update dither output",
+        "source video upload clear reset and timeline frames update dither output",
         "particle type changes ASCII glyph output",
         "scale changes ASCII grid resolution",
         "spacing changes particle separation",
@@ -250,7 +280,7 @@ describe("appSchema", () => {
         "density changes visible particle count",
         "speed changes timeline-driven field drift",
         "dither strength changes contrast",
-        "dither contrast changes particle tone range",
+        "dither depth changes particle scale and tone separation",
         "dither threshold changes particle cutoff",
         "background color changes preview and exports",
         "include background controls preview png alpha and video background",
@@ -269,6 +299,8 @@ describe("appSchema", () => {
 
     expect(performanceTestNames).toEqual(
       expect.arrayContaining([
+        "source image import prepares dither sampler within budget",
+        "source video import prepares dither sampler within budget",
         "density control drag remains responsive under heavy ASCII load",
         "scale control drag remains responsive under dense ASCII load",
         "spacing control drag remains responsive under dense ASCII load",
@@ -282,7 +314,7 @@ describe("appSchema", () => {
         "particle type select changes glyph family within budget",
         "speed drag keeps timeline preview responsive",
         "dither strength drag keeps preview responsive",
-        "contrast drag keeps preview responsive",
+        "depth drag keeps preview responsive",
         "include background toggle stays responsive",
         "background color change stays responsive",
         "image format select stays responsive",

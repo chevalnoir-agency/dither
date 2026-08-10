@@ -6,7 +6,7 @@ This file records product decisions and the evidence behind them.
 
 Mode: product
 
-CHEVAL NOIR DITHER is a product app with a custom Canvas 2D renderer, playback timeline, product controls including particle spacing, organic void control, contrast, and diagonal hatch particles, SVG/PNG/JPG/video exports, persistence, acceptance coverage, and performance coverage.
+CHEVAL NOIR DITHER is a product app with a custom Canvas 2D renderer, optional source-image and source-video upload, playback timeline, product controls including particle spacing, organic void control, contrast, and diagonal hatch particles, SVG/PNG/JPG/video exports, persistence, acceptance coverage, and performance coverage.
 
 ## Decision Trail
 
@@ -180,25 +180,196 @@ CHEVAL NOIR DITHER is a product app with a custom Canvas 2D renderer, playback t
 - Skipped checks: Full performance checkpoint is not required for this post-first-working spacing-range iteration because targeted spacing performance covers the touched workload and the first working product checkpoint already passed.
 - Risks: Risk: `-8px` is intentionally available for compressed visuals, but under extreme combinations such as Scale 6, Density 100, and render scale 2 it is outside the guaranteed smooth target recorded in `app-performance.ts`.
 
+### Iteration 11 — Source Image Dither Input
+
+- Request: Add an option so the user can upload an image as the source material and apply the CHEVAL NOIR DITHER effect to it.
+- Task type: Tier 3 post-first-working product iteration touching source-media controls, runtime media state, renderer source sampling, SVG/PNG/video export, acceptance, performance, browser tests, and worklog.
+- User-visible result: The controls panel now includes a `Source` section with an `Image` upload. When an image is present, the ASCII field samples its luminance while preserving particle type, density, scale, spacing, voids, dither, motion, and export settings; clearing or resetting the source returns to the procedural field.
+- Source/reference checked: Current schema, fileDrop contract, renderer frame model, export helpers, media transform runtime, acceptance matrix, performance matrix, e2e browser tests, and the user's latest source-image request.
+- Reference inputs: Latest user request; no new external media beyond the existing reference screen recording already used for the product.
+- Docs/contracts read: `AGENTS.md`, `docs/toolcraft/workflow.md`, `schema-reference.md`, `component-rules.md`, `acceptance-testing.md`, `performance.md`, `renderer-technique.md`, and `decision-contract.md`; required skills `brainstorming`, `writing-plans`, `systematic-debugging`, and `browser`.
+- Contract rules applied: `controls-product-coverage`, `output-export-required`, `renderer-technique-inventory`, `acceptance-product-observable`, `performance-coverage-levels`, `persistence-policy-explicit`, and `workflow-required`.
+- Decision: Use Toolcraft's built-in `fileDrop` control for `source.image`; keep Layers disabled; decode the uploaded image into a transform-aware cover-cropped luminance sampler; feed that sampler into the existing deterministic ASCII frame model for Canvas preview, SVG, PNG/JPG, and video export.
+- Alternatives rejected: A custom uploader was rejected because `fileDrop` owns image upload, clear, reset, and transform actions; showing placeholder source artwork on canvas was rejected because the canvas must stay product-output-only before real content exists; switching the whole renderer to WebGL was rejected because source sampling is a media-import preprocessing pass and the visible primitive/export remains text glyph output.
+- State/output mapping: `source.image` stores the uploaded runtime media asset and transform metadata; `getAsciiSourceImageAsset` locates the asset; `createAsciiSourceSampler` draws it with rotation/flip metadata into canvas-size luminance data; `createAsciiPatternFrame` uses sampled luminance when present and falls back to procedural noise when empty.
+- Files changed: `src/app/app-schema.ts`, `src/app/ascii-pattern.ts`, `src/app/ascii-pattern-renderer.tsx`, `src/app/ascii-export.ts`, `src/app/app-acceptance.ts`, `src/app/app-performance.ts`, `src/app/app-schema.test.ts`, `src/app/app-acceptance.test.ts`, `src/app/app-performance.test.ts`, `e2e/app-controls.spec.ts`, and `docs/toolcraft/agent-worklog.md`.
+- Verification: Targeted unit tests passed (`node_modules/.bin/vitest run src/app/app-schema.test.ts src/app/app-acceptance.test.ts src/app/app-performance.test.ts`); `npm test` passed; `npm run build` passed; targeted browser acceptance passed for `browser: source image upload clear reset and transforms update dither output` including SVG and video export; targeted browser performance passed for `browser perf: source image import prepares dither sampler`.
+- Skipped checks: Direct `pnpm verify:quick` was not used because `pnpm` is not exposed in this session and the script recursively calls `pnpm`; equivalent local checks passed with `npm run ai:check`, `npm test`, and targeted Playwright browser tests. Full `pnpm verify:perf` is not required for this post-first-working media-flow iteration because targeted media-import performance passed and the first working product checkpoint already passed.
+- Risks: Risk: Very large uploaded images beyond the recorded 1920x1080-equivalent stress fixture will decode and resample on the main thread; the app records the guaranteed media-import workload at 1920x1080.
+
+### Iteration 12 — Source Video Dither Input
+
+- Request: Add support for videos as source material after the image-source feature.
+- Task type: Tier 3 post-first-working product iteration touching source-media controls, runtime file media state, video decode/seek sampling, Canvas preview, SVG/PNG/video export, acceptance, performance, browser tests, and worklog.
+- User-visible result: The Source section now includes a `Video` upload. When a video is present, CHEVAL NOIR DITHER samples its current frame from timeline progress and applies the same particle, void, dither, spacing, and export controls; removing the video returns to the uploaded image fallback or procedural field.
+- Source/reference checked: Current schema, Toolcraft `fileDrop` file-mode contract, video metadata/loading behavior, renderer source sampling, export helpers, acceptance matrix, performance matrix, targeted Playwright tests, and the user's latest video-source request.
+- Reference inputs: Latest user request; no new external media beyond the existing reference screen recording already used for the product.
+- Docs/contracts read: `AGENTS.md`, `docs/toolcraft/workflow.md`, `schema-reference.md`, `component-rules.md`, `acceptance-testing.md`, `performance.md`, `renderer-technique.md`, and `decision-contract.md`; required skills `brainstorming`, `writing-plans`, `systematic-debugging`, and `browser`.
+- Contract rules applied: `controls-product-coverage`, `output-export-required`, `renderer-technique-inventory`, `acceptance-product-observable`, `performance-coverage-levels`, `persistence-policy-explicit`, and `workflow-required`.
+- Decision: Use Toolcraft's built-in `fileDrop` control for `source.video` with `assetKind: "file"` and `accept: "video/*"`; keep video as a source override above image; load uploaded video into a hidden `HTMLVideoElement`; map Toolcraft timeline progress to video time; create a canvas-size luminance sampler from the current frame for preview and export.
+- Alternatives rejected: A custom video picker was rejected because file-mode `fileDrop` owns upload, file list, remove, reset, and canvas drag import behavior; drawing the uploaded video directly on the canvas was rejected because the canvas must remain the final dither output; treating video as a separate layer was rejected because the user edits one resulting dither field, not independent source/output layers.
+- State/output mapping: `source.video` stores the uploaded runtime media asset; `getAsciiSourceVideoAsset` gives it priority over `source.image`; `getAsciiSourceVideoTime` maps `state.timeline.currentTimeSeconds` into the source clip; `seekAsciiSourceVideo` prepares the frame; `createAsciiSourceSampler` samples frame luminance; `createAsciiPatternFrame` consumes that sampler for Canvas preview, SVG stills, PNG/JPG stills, and recorded video export.
+- Files changed: `src/app/app-schema.ts`, `src/app/ascii-pattern.ts`, `src/app/ascii-pattern-renderer.tsx`, `src/app/ascii-export.ts`, `src/app/app-acceptance.ts`, `src/app/app-performance.ts`, `src/app/app-schema.test.ts`, `src/app/app-acceptance.test.ts`, `e2e/app-controls.spec.ts`, and `docs/toolcraft/agent-worklog.md`.
+- Verification: `npm run ai:check` passed; `npm test` passed; `npm run build` passed; targeted browser acceptance passed for `browser: source video upload clear reset and timeline frames update dither output`; targeted browser performance passed for `browser perf: source video import prepares dither sampler`.
+- Skipped checks: Direct `pnpm verify:quick` was not used because `pnpm` is not exposed in this session and the script recursively calls `pnpm`; equivalent local checks passed with npm and local Playwright. Full `pnpm verify:perf` is not required for this post-first-working media-flow iteration because targeted source-video media-import performance passed and the first working product checkpoint already passed.
+- Risks: Risk: Very large or long uploaded videos beyond the recorded 1920x1080 source-video stress fixture will decode and seek on the main thread during source preparation and export; MP4/MOV browser decode support still depends on the local browser codecs, while WebM fixtures are covered in tests.
+
+### Iteration 13 — Distinct Source Import Sections
+
+- Request: The two import boxes look like they are named the same even though one is for image source and one is for video source.
+- Task type: Tier 1 local control presentation fix touching Source section titles, reset labels, acceptance inventory, browser tests, and worklog.
+- User-visible result: The controls panel now shows separate `Source Image` and `Source Video` sections, so the image uploader and video uploader have distinct visible contexts before any file is imported.
+- Source/reference checked: User screenshot `/var/folders/82/tv61vryj3bd9t7hvnqzfp96h0000gn/T/TemporaryItems/NSIRD_screencaptureui_VTuAY4/Capture d’écran 2026-07-05 à 18.51.11.png`, current schema, runtime `fileDrop` behavior, acceptance inventory, and targeted browser source upload tests.
+- Reference inputs: User screenshot showing the two empty Source import boxes with generic image/file drop-zone copy.
+- Docs/contracts read: `AGENTS.md`, `docs/toolcraft/workflow.md`, `component-rules.md`, `schema-reference.md`, `acceptance-testing.md`, and `decision-contract.md`; required skills `brainstorming`, `writing-plans`, `systematic-debugging`, and `browser`.
+- Contract rules applied: `controls-layout-heuristics`, `controls-product-coverage`, `acceptance-product-observable`, and `workflow-required`.
+- Decision: Keep native Toolcraft `fileDrop` controls and split the shared Source section into `Source Image` and `Source Video` instead of patching the local runtime or adding custom uploader UI.
+- Alternatives rejected: Patching copied `src/toolcraft` fileDrop placeholder text was rejected because this app can solve the ambiguity through schema section context; adding custom helper text inside the canvas was rejected because uploads must stay in controls and the canvas must remain product output only; keeping both uploaders under one `Source` title was rejected because the empty file-mode uploader only says “file”.
+- State/output mapping: `source.image` and `source.video` targets remain unchanged, so media sampling, image fallback, video priority, preview, SVG, PNG/JPG, and video exports keep the same behavior; only section titles and section reset labels change.
+- Files changed: `src/app/app-schema.ts`, `src/app/app-acceptance.ts`, `src/app/app-schema.test.ts`, `e2e/app-controls.spec.ts`, and `docs/toolcraft/agent-worklog.md`.
+- Verification: Targeted schema/acceptance tests passed (`node_modules/.bin/vitest run src/app/app-schema.test.ts src/app/app-acceptance.test.ts --passWithNoTests`); targeted browser acceptance passed for source image and source video upload/reset/export flows; `npm run build` passed.
+- Skipped checks: Full performance checkpoint is not required for this post-first-working presentation fix because no renderer workload, media decode behavior, export bytes, timeline behavior, or canvas output changed.
+- Risks: None: the state targets and media/export behavior are unchanged.
+
+### Iteration 14 — Source Video Auto Levels
+
+- Request: A newly uploaded video appears to produce no visible dither output.
+- Task type: Tier 3 post-first-working bug fix touching source-video sampling, Canvas preview, SVG/PNG/video export source frames, browser coverage, performance metadata, and worklog.
+- User-visible result: Uploaded video frames are now auto-leveled before luminance sampling, so dark or low-contrast videos still generate visible CHEVAL NOIR DITHER particles under the default threshold.
+- Source/reference checked: Current source-video loader/sampler, source-image sampler, renderer preview, export sampler factory, user report, and targeted browser tests using high-contrast plus deliberately dark low-contrast WebM source fixtures.
+- Reference inputs: User report that adding a video produced no visible result; no new external media file was provided for this pass.
+- Docs/contracts read: `AGENTS.md`, `docs/toolcraft/workflow.md`, `component-rules.md`, `schema-reference.md`, `acceptance-testing.md`, `renderer-technique.md`, `performance.md`, and `decision-contract.md`; required skills `brainstorming`, `writing-plans`, `systematic-debugging`, and `browser`.
+- Contract rules applied: `controls-product-coverage`, `output-export-required`, `renderer-technique-inventory`, `acceptance-product-observable`, `performance-coverage-levels`, and `workflow-required`.
+- Decision: Keep the native video upload flow and add histogram-based luminance auto-leveling inside `createAsciiSourceSampler`; return `undefined` safely if a video frame is not drawable yet instead of throwing from `drawImage` or `getImageData`.
+- Alternatives rejected: Lowering the global default Threshold was rejected because it would change the established procedural look; adding a new user-facing control was rejected because this is a source-media robustness fix; patching Toolcraft file upload runtime was rejected because the failure is in app-specific media sampling.
+- State/output mapping: `source.video` still resolves to the uploaded media asset; the decoded video frame is drawn into the canvas-size sampler; the sampler now records low/high luminance levels and `sampleAsciiSourceLuminance` normalizes each sampled pixel before the existing dither threshold, void mask, particle colors, preview, SVG, PNG/JPG, and video export paths consume it.
+- Files changed: `src/app/ascii-pattern.ts`, `src/app/app-acceptance.ts`, `src/app/app-performance.ts`, `e2e/app-controls.spec.ts`, and `docs/toolcraft/agent-worklog.md`.
+- Verification: `npm run typecheck` passed; targeted browser acceptance passed for normal source-video upload/reset/timeline/export and dark source-video auto-level output; targeted browser performance passed for `browser perf: source video import prepares dither sampler`; `npm test` passed; `npm run build` passed.
+- Skipped checks: Full performance checkpoint is not required for this post-first-working media robustness fix because the targeted source-video media-import performance scenario passed and no broad renderer architecture changed.
+- Risks: Risk: Unsupported browser video codecs still cannot be decoded in-browser; MP4/MOV/HEVC behavior depends on the user's browser codec support.
+
+### Iteration 15 — Thinner Cross Particles
+
+- Request: Reduce the thickness of the `crosses` particles.
+- Task type: Tier 3 post-first-working renderer visual iteration touching Canvas cross glyph geometry, SVG cross export geometry, targeted app tests, and worklog.
+- User-visible result: Cross particles keep their current scale and grid placement, but the horizontal and vertical bars are visibly thinner in the live preview and in SVG still exports.
+- Source/reference checked: Current Canvas cross drawing path, SVG export path, app schema test coverage, renderer contracts, acceptance contracts, performance contracts, and the user's latest cross-thickness request.
+- Reference inputs: Latest user request; no new external media beyond the existing reference screen recording already used for the product.
+- Docs/contracts read: `AGENTS.md`, `docs/toolcraft/workflow.md`, `renderer-technique.md`, `performance.md`, `acceptance-testing.md`, and `decision-contract.md`; required skills `brainstorming`, `writing-plans`, and `browser`.
+- Contract rules applied: `renderer-technique-inventory`, `output-export-required`, `acceptance-product-observable`, `performance-coverage-levels`, and `workflow-required`.
+- Decision: Share one cross length/thickness ratio between preview and SVG export, reduce thickness from `0.14` to `0.08` of glyph size, and render SVG crosses as two vector rectangles instead of a typographic `+`.
+- Alternatives rejected: Reducing overall `Scale` was rejected because it would change grid density and all particle families; changing `Spacing` was rejected because the user asked for stroke thickness, not particle distance; leaving SVG crosses as text was rejected because the exported `+` would remain visually heavier than the Canvas preview.
+- State/output mapping: `pattern.particleType = "cross"` still selects `+` glyphs in the shared frame model; Canvas preview maps each cross glyph to two thin rectangles, and `createAsciiPatternSvg` maps the same glyphs to equivalent SVG rectangles using the same color, size, position, length, and thickness constants.
+- Files changed: `src/app/ascii-pattern.ts`, `src/app/app-schema.test.ts`, `e2e/app-controls.spec.ts`, and `docs/toolcraft/agent-worklog.md`.
+- Verification: `npm run typecheck` passed; targeted app tests passed (`node_modules/.bin/vitest run src/app/app-schema.test.ts` and the broader app matrix before browser); `npm test` passed; `npm run build` passed; targeted browser acceptance passed for `browser: pattern controls change ASCII output` and `browser: footer exports create svg image and video bytes`.
+- Skipped checks: Full performance checkpoint is not required for this post-first-working visual renderer edit because it reduces stroke thickness without increasing glyph count, canvas size, source-media decode, animation frequency, or export resolution.
+- Risks: None: particle positions, counts, controls, timeline mapping, and source-media sampling are unchanged.
+
+### Iteration 16 — Restore Original Cross Weight
+
+- Request: Revert the thinner `crosses` particles because the previous look was preferred.
+- Task type: Tier 3 post-first-working renderer visual iteration touching Canvas cross glyph geometry, SVG cross export markup, targeted browser coverage, and worklog.
+- User-visible result: Cross particles are back to the previous heavier bar weight in the live preview, and SVG exports again use the original typographic `+` glyph output.
+- Source/reference checked: Current Canvas cross drawing path, current SVG export path, the previous pre-thin cross implementation, browser export tests, renderer contracts, acceptance contracts, performance contracts, and the user's revert request.
+- Reference inputs: Latest user revert request; no new external media beyond the existing reference screen recording already used for the product.
+- Docs/contracts read: `AGENTS.md`, `docs/toolcraft/workflow.md`, `renderer-technique.md`, `performance.md`, and `acceptance-testing.md`; required skills `brainstorming`, `writing-plans`, and `browser`.
+- Contract rules applied: `renderer-technique-inventory`, `output-export-required`, `acceptance-product-observable`, `performance-coverage-levels`, and `workflow-required`.
+- Decision: Restore Canvas cross thickness to `0.14` of glyph size and restore SVG cross export to the same text-glyph path used before Iteration 15.
+- Alternatives rejected: Reducing Scale or changing Spacing was rejected because the user asked to revert the cross look only; keeping vector rectangles with thicker bars was rejected because the preferred prior version used typographic SVG glyphs; changing other particle families was rejected because the request only concerns Crosses.
+- State/output mapping: `pattern.particleType = "cross"` still selects `+` in the shared frame model; Canvas preview maps that glyph to the original heavier rectangle bars, while SVG, PNG/JPG, and video exports again follow the pre-thin output behavior through the shared frame/export paths.
+- Files changed: `src/app/ascii-pattern.ts`, `src/app/app-schema.test.ts`, `e2e/app-controls.spec.ts`, and `docs/toolcraft/agent-worklog.md`.
+- Verification: `npm run typecheck` passed; targeted app tests passed (`node_modules/.bin/vitest run src/app/app-schema.test.ts src/app/app-acceptance.test.ts src/app/app-performance.test.ts`); `npm test` passed; `npm run build` passed; targeted browser acceptance passed for `browser: pattern controls change ASCII output` and `browser: footer exports create svg image and video bytes`.
+- Skipped checks: Full performance checkpoint is not required for this post-first-working visual revert because it restores a previously validated renderer/export path and does not add controls, glyph count, source-media workload, canvas size, or export resolution.
+- Risks: None: this returns the Crosses particle rendering to the previous preferred look without changing state, controls, source-media sampling, or timeline behavior.
+
+### Iteration 17 — Video Export Duration Lock
+
+- Request: MP4 export should be 10 seconds, but the downloaded video is about 1 minute 16 seconds.
+- Task type: Tier 3 post-first-working export bug fix touching MediaRecorder frame scheduling, source-video sampling during video export, browser coverage, and worklog.
+- User-visible result: Video export duration now stays tied to the Toolcraft timeline duration instead of accumulating source-video seek/render time into the encoded MP4/WebM duration.
+- Source/reference checked: User exported file `/Users/pierrevoisin/Downloads/ascii-dither-field (3).mp4`, MP4 container dimensions/duration parsed locally, `exportAsciiVideo`, source-video sampler/seek code, video export browser tests, renderer contracts, acceptance contracts, and performance contracts.
+- Reference inputs: User report that the export should be 10 seconds but produced a 1m16s MP4; local exported MP4 metadata showed a 74.208s file.
+- Docs/contracts read: `AGENTS.md`, `docs/toolcraft/workflow.md`, `acceptance-testing.md`, `performance.md`, and `renderer-technique.md`; required workflow skills were unavailable in this environment, so the local Toolcraft contracts were followed directly.
+- Contract rules applied: `output-export-required`, `timeline-enabled-behavior`, `acceptance-product-observable`, `renderer-technique-inventory`, `performance-coverage-levels`, and `workflow-required`.
+- Decision: Schedule recorded frames against target timeline timestamps, remove the unconditional per-frame wait after rendering, and during source-video export play the loaded source video continuously at a playback rate mapped to timeline duration instead of seeking it once per exported frame.
+- Alternatives rejected: Keeping per-frame video seeks was rejected because MediaRecorder encodes real elapsed time and slow seeks stretch the final video; lowering frame count was rejected because it would reduce motion fidelity without fixing the timing model; changing timeline duration defaults was rejected because the selected timeline already represented the desired output duration.
+- State/output mapping: `state.timeline.durationSeconds` determines `durationSeconds`, `frameCount`, and the wall-clock target for each requested frame; uploaded `source.video` is decoded once, played continuously during recording, sampled from its current frame, and cleaned up after export; source image/procedural exports keep the same frame model but now use target-time scheduling rather than fixed post-render waits.
+- Files changed: `src/app/ascii-export.ts`, `e2e/app-controls.spec.ts`, and `docs/toolcraft/agent-worklog.md`.
+- Verification: `npm run typecheck` passed; targeted app tests passed (`node_modules/.bin/vitest run src/app/app-schema.test.ts src/app/app-acceptance.test.ts src/app/app-performance.test.ts`); targeted browser acceptance passed for `browser: source video upload clear reset and timeline frames update dither output` and `browser: video export produces timeline-duration metadata`.
+- Skipped checks: Full performance checkpoint is not required for this post-first-working export timing bug fix because targeted browser export duration coverage exercises the touched source-video and timeline export path.
+- Risks: Risk: If the browser cannot play a muted uploaded source video during the user-triggered export, the export will fail instead of silently producing a stretched-duration file.
+
+### Iteration 18 — Video Export Playback Fallback
+
+- Request: After the duration fix, video export creates no file.
+- Task type: Tier 3 post-first-working export bug fix touching source-video playback startup during video export, browser coverage, and worklog.
+- User-visible result: Video export no longer aborts when the browser refuses or delays `video.play()` for the hidden uploaded source video; it continues recording from the available source frame instead of producing no download.
+- Source/reference checked: Current `exportAsciiVideo`, source-video playback startup, user screenshot showing the export controls, and the browser export coverage added for refused playback startup.
+- Reference inputs: User report that no file is created after clicking export; screenshot `/var/folders/82/tv61vryj3bd9t7hvnqzfp96h0000gn/T/TemporaryItems/NSIRD_screencaptureui_uWPamq/Capture d’écran 2026-07-11 à 17.14.21.png`.
+- Docs/contracts read: `AGENTS.md`, `docs/toolcraft/workflow.md`, `acceptance-testing.md`, `performance.md`, and `renderer-technique.md`; required workflow skills were unavailable in this environment, so the local Toolcraft contracts were followed directly.
+- Contract rules applied: `output-export-required`, `acceptance-product-observable`, `renderer-technique-inventory`, `performance-coverage-levels`, and `workflow-required`.
+- Decision: Treat source-video `play()` as best-effort during export by catching rejections and timing out the startup wait, so MediaRecorder setup and file download can proceed even if autoplay/playback startup is refused.
+- Alternatives rejected: Restoring frame-by-frame seeking was rejected because it reintroduces stretched output duration; failing the export when hidden source playback is refused was rejected because it produces no file; dropping source-video support during export was rejected because uploaded video is a core product feature.
+- State/output mapping: `source.video` is still loaded and seeked to the first frame; playback startup is attempted but no longer required for the export Promise to continue; `export.video.*`, timeline duration, MediaRecorder, and download behavior stay on the same export path.
+- Files changed: `src/app/ascii-export.ts`, `e2e/app-controls.spec.ts`, and `docs/toolcraft/agent-worklog.md`.
+- Verification: `npm run typecheck` passed; targeted app matrix tests passed; `npm run build` passed.
+- Environment note: The separate browser-server permission returned an out-of-credits error before the targeted export exercise could start.
+- Skipped checks: Full performance checkpoint is not required for this post-first-working export startup bug fix.
+- Risks: Risk: If hidden source video playback is refused, the exported dither may use the available source frame rather than animated source-video frames, but a file should still be created and timeline duration should remain bounded.
+
+### Iteration 19 — Video Export Freeze Fix
+
+- Request: The deployed app still freezes on video export and creates no file.
+- Task type: Tier 3 post-first-working export/performance bug fix touching source-video sampling, preview/export sampler resolution, recorder startup/stop behavior, browser export coverage, performance coverage, and worklog.
+- User-visible result: Video export no longer tries to rebuild a full-canvas source-video luminance map for every recorded frame; it samples source media at the ASCII grid resolution, records with a real capture cadence, flushes recorder data, and times out encoder completion instead of leaving the button active forever.
+- Source/reference checked: Current `exportAsciiVideo`, `createAsciiSourceSampler`, `AsciiPatternRenderer`, user screenshot showing `Export Video` stuck, and existing browser export/performance scenarios for source video and timeline-duration metadata.
+- Reference inputs: User report that the Vercel version freezes on export and produces no file; screenshot `/var/folders/82/tv61vryj3bd9t7hvnqzfp96h0000gn/T/TemporaryItems/NSIRD_screencaptureui_5MA7aC/Capture d’écran 2026-07-11 à 17.24.42.png`.
+- Docs/contracts read: `AGENTS.md`, `docs/toolcraft/workflow.md`, `decision-contract.md`, `acceptance-testing.md`, `performance.md`; required workflow skills `systematic-debugging` and `browser`.
+- Contract rules applied: `output-export-required`, `renderer-technique-inventory`, `acceptance-product-observable`, `performance-coverage-levels`, and `workflow-required`.
+- Decision: Add target-coordinate-aware source samplers with grid-resolution sample dimensions, use those samplers for preview and exports, start canvas capture at the export frame rate for browsers without manual `requestFrame`, flush recorder chunks during recording, guard recorder completion with a timeout, and always clean up video tracks/source media.
+- Alternatives rejected: Returning to frame-by-frame source-video seeking was rejected because it already caused stretched exports; lowering export resolution automatically was rejected because the selected Current/4K setting must be honored; keeping full-canvas per-frame source sampling was rejected because it multiplies readback cost by every recorded frame and matches the freeze symptom.
+- State/output mapping: `pattern.scale` and `pattern.spacing` determine the ASCII grid step and source sampler dimensions; `source.image` and `source.video` still feed the same luminance path; `export.video.*` still controls recorder format and output size; timeline duration still drives rendered progress and exported metadata.
+- Files changed: `src/app/ascii-pattern.ts`, `src/app/ascii-pattern-renderer.tsx`, `src/app/ascii-export.ts`, and `docs/toolcraft/agent-worklog.md`.
+- Verification: `npm run typecheck` passed; targeted app matrix tests passed; targeted browser export checks passed; targeted export performance check passed; `npm run build` passed.
+- Skipped checks: None for the Tier 3 export path; broader unrelated suite left unchanged.
+- Risks: Risk: A full 10-second video export still takes roughly the selected timeline duration because the browser recorder encodes in real time, but it should show progress and produce a file instead of freezing indefinitely.
+
+### Iteration 20 — Depth Control And Source Recovery
+
+- Request: Repurpose the visible Contrast control so it adds or reduces visual depth in the latest online version.
+- Task type: Tier 3 post-first-working renderer/control change plus recovery of the newer Vercel source history that had not been pushed to GitHub.
+- User-visible result: The Dither section now shows `Depth`; `0` flattens particle tone and apparent size, while values toward `2` make strong particles larger/brighter and weak particles smaller/darker without changing grid spacing, count, voids, or source media.
+- Source/reference checked: Public bundle at `https://chevalnoirdither.vercel.app`, GitHub `chevalnoir-agency/dither` main branch, recovered Codex patch history from July 5-11, current schema, shared Canvas/SVG/image/video frame model, and Dither browser coverage.
+- Reference inputs: User request on August 10 to make Contrast control depth; public Vercel bundle confirmed Image/Video source controls and export fixes absent from GitHub main.
+- Docs/contracts read: Existing product worklog, schema, renderer, acceptance, performance, and export implementation recovered from the deployment source history.
+- Contract rules applied: `controls-product-coverage`, `renderer-technique-inventory`, `acceptance-product-observable`, `performance-coverage-levels`, `persistence-policy-explicit`, and `workflow-required`.
+- Decision: Keep target `dither.contrast` for saved-setting compatibility, rename the visible control to `Depth`, map its `0..2` range to both tone separation and a bounded `0.72..1.28` intensity-based glyph scale, and use the shared frame model so preview, SVG, PNG/JPG, and video agree.
+- Alternatives rejected: A pure label rename was rejected because it would still only change contrast; changing particle count or spacing was rejected because those have dedicated controls; random size variation was rejected because depth must follow source/procedural intensity and remain deterministic.
+- State/output mapping: Existing `dither.contrast` values persist; `0` maps all glyphs to midpoint color and scale `1`; `2` preserves the previous maximum low/high color separation and adds maximum intensity-based apparent depth; intermediate values interpolate both effects.
+- Files changed: Recovered source history across app schema/renderer/export/acceptance/performance/browser coverage, then updated `src/app/app-schema.ts`, `src/app/ascii-pattern.ts`, `src/app/app-acceptance.ts`, `src/app/app-performance.ts`, `src/app/app-schema.test.ts`, `e2e/app-controls.spec.ts`, and this worklog.
+- Verification: `pnpm verify:quick` passed with 219 app tests; `pnpm build` passed; real-browser comparison confirmed flat uniform particles at Depth `0` and tone/size separation at `2`; targeted Dither SVG acceptance and Depth control-drag performance passed.
+- Skipped checks: Full performance checkpoint is not required for this post-first-working non-performance edit because depth does not increase cell count and the dedicated control-drag scenario covers its per-glyph arithmetic.
+- Risks: Depth changes glyph dimensions inside existing cells, so very dense negative spacing can intentionally create more overlap at high values; the bounded scale prevents unbounded geometry growth.
+
 ## Decisions
 
 ### Renderer
 
-- Decision: Canvas 2D live preview renderer with SVG still export generated from the same ASCII frame model.
-- Reason: The product is dense text-output: the stress state can draw many glyphs per frame, while the user still needs a vector SVG still export and exact particle colors.
-- Evidence: `src/app/ascii-pattern-renderer.tsx` renders only product canvas output; `src/app/ascii-pattern.ts` generates deterministic organic glyph frames, `pattern.voids` mask shaping, contrast-aware tone remapping, and SVG text with the CHEVAL NOIR color ramp; `src/app/app-performance.ts` declares `rendererTechnique`, `rendererPipeline`, and workload scenarios.
+- Decision: Canvas 2D live preview renderer with optional source-image/source-video luminance sampling and SVG still export generated from the same ASCII frame model.
+- Reason: The product is dense text-output: the stress state can draw many glyphs per frame, uploaded media is source material rather than a visible layer, and the user still needs a vector SVG still export with exact particle colors.
+- Evidence: `src/app/ascii-pattern-renderer.tsx` renders only product canvas output and loads `source.image` plus `source.video`; `src/app/ascii-pattern.ts` generates deterministic organic glyph frames, image/video luminance sampling, `pattern.voids` mask shaping, depth-aware tone/size mapping, and SVG text with the CHEVAL NOIR color ramp; `src/app/app-performance.ts` declares `rendererTechnique`, `rendererPipeline`, media-import coverage, and workload scenarios.
 
 Renderer Technique Decision Matrix:
 
-- sourceRepresentation: procedural-data.
+- sourceRepresentation: video-media when uploaded, image-media fallback when uploaded, procedural fallback when both are empty.
 - productRepresentation: text.
 - previewRenderer: canvas-2d.
 - exportRenderer: media-recorder for video, canvas-2d for PNG/JPG, SVG text for still vector output.
 - rendererWorkload: text-output.
 - rendererStrategy: canvas-2d.
-- whyNotAlternativeStrategies: DOM and SVG live preview create too many nodes at stress scale; WebGL/WebGPU do not improve the text glyph primitive or SVG export requirement.
+- whyNotAlternativeStrategies: DOM and SVG live preview create too many nodes at stress scale; WebGL/WebGPU do not improve the text glyph primitive or SVG export requirement, and source-media sampling is bounded to uploaded media frames rather than every glyph draw.
 - fidelityRisks: Canvas preview rasterizes glyphs; MP4 support depends on browser MediaRecorder capabilities.
-- performanceRisks: Small scale, low spacing, and high density increase glyph count; video export takes approximately the selected timeline duration.
+- performanceRisks: Small scale, low spacing, and high density increase glyph count; uploaded source images add decode and luminance preparation; uploaded source videos add decode, seek, luminance auto-leveling, and frame-sampling work; video export takes approximately the selected timeline duration.
 
 Renderer Layer Inventory:
 
@@ -206,10 +377,14 @@ Renderer Layer Inventory:
 
 Render Pipeline Inventory:
 
-- field-model pass: text-layout on main thread; cache keys are particle type, scale, spacing, void amount, density, dither strength, dither contrast, threshold, speed, timeline time, duration, and canvas size.
-- glyph-raster-preview pass: rasterize on main thread; cache keys are field model, background, include background, and render scale.
-- export-frame pass: export-only; cache keys are field model, background, include background, image settings, video settings, and canvas size.
-- interaction invalidation: control drags invalidate field/preview; timeline playback and scrub invalidate field/preview; viewport drag and zoom must not invalidate field or raster caches; export invalidates only export-frame.
+- source-image-decode pass: media decode on main thread; cache key is `source.image.dataUrl`.
+- source-image-sampler pass: source preprocessing on main thread; cache keys are decoded image, media transform metadata, and canvas size.
+- source-video-decode pass: media decode on main thread; cache key is `source.video.dataUrl`.
+- source-video-frame-sampler pass: source-video preprocessing on main thread; cache keys are decoded video, timeline time/duration, auto levels, and canvas size.
+- field-model pass: text-layout on main thread; cache keys are source sampler, particle type, scale, spacing, void amount, density, dither strength, dither contrast, threshold, speed, timeline time, duration, and canvas size.
+- glyph-raster-preview pass: rasterize on main thread; cache keys are source sampler, field model, background, include background, and render scale.
+- export-frame pass: export-only; cache keys are source sampler, field model, background, include background, image settings, video settings, and canvas size.
+- interaction invalidation: media import invalidates source decode/sampler, field, preview, and export; control drags invalidate field/preview; timeline playback, scrub, and animation frames must not declare expensive pass invalidation; viewport drag and zoom must not invalidate field or raster caches; export invalidates only export-frame.
 
 ### Timeline
 
@@ -225,25 +400,25 @@ Render Pipeline Inventory:
 
 ### Controls
 
-- Decision: Product controls are grouped as Pattern, Motion, Dither, Background, Image Export, Video Export, and sticky Export actions.
-- Reason: Each section maps to a product entity or workflow stage rather than control type; Background directly precedes export settings as required.
-- Evidence: `starterControlSectionInventory` in `src/app/app-acceptance.ts` mirrors the schema targets including `pattern.spacing`, `pattern.voids`, `pattern.particleType`, and `dither.contrast`; every visible control has `performanceRole`, `defaultValue`, and an acceptance row, and the Particle select covers Crosses, Mini dots, Hachures, and Mixed.
+- Decision: Product controls are grouped as Source Image, Source Video, Pattern, Motion, Dither, Background, Image Export, Video Export, and sticky Export actions.
+- Reason: Each section maps to a product entity or workflow stage rather than control type; Source Image owns the still fallback upload, Source Video owns the animated override upload, and Background directly precedes export settings as required.
+- Evidence: `starterControlSectionInventory` in `src/app/app-acceptance.ts` mirrors the schema targets including split `source.image` and `source.video` sections with workflow-stage split reasons, `pattern.spacing`, `pattern.voids`, `pattern.particleType`, and `dither.contrast`; every visible control has `performanceRole`, `defaultValue`, and an acceptance row, and the Particle select covers Crosses, Mini dots, Hachures, and Mixed.
 
 ### Export
 
-- Decision: Provide Export SVG, Export PNG, and Export Video footer actions; PNG/JPG uses Image Export settings and video uses Video Export settings.
-- Reason: The user explicitly requested SVG stills and MP4 video, while the Toolcraft contract requires animated apps to include Export PNG and Export Video with standard settings.
-- Evidence: `src/app/ascii-export.ts` reads `export.image.format`, `export.image.resolution`, `export.video.format`, and `export.video.resolution`; PNG uses `createToolcraftPngExportCanvas({ includeBackground, resolution })`; video uses `getToolcraftVideoExportSize`, `shouldIncludeToolcraftExportBackground`, `MediaRecorder.isTypeSupported`, and recorder error handling.
+- Decision: Provide Export SVG, Export PNG, and Export Video footer actions; PNG/JPG uses Image Export settings, video uses Video Export settings, and all exports consume the uploaded source video when present or the uploaded source image fallback when no video is present.
+- Reason: The user explicitly requested SVG stills and MP4 video, now including image/video source dithering, while the Toolcraft contract requires animated apps to include Export PNG and Export Video with standard settings.
+- Evidence: `src/app/ascii-export.ts` reads `source.video`, `source.image`, `export.image.format`, `export.image.resolution`, `export.video.format`, and `export.video.resolution`; PNG uses `createToolcraftPngExportCanvas({ includeBackground, resolution })`; video uses `getToolcraftVideoExportSize`, `shouldIncludeToolcraftExportBackground`, live source-video playback during recording, timeline-targeted frame scheduling, `MediaRecorder.isTypeSupported`, and recorder error handling; browser source acceptance exports SVG and a short video after upload.
 
 ### Performance
 
-- Decision: Guarantee smooth dense-stress targets for scale 6, spacing 0, voids 0, density 100, threshold 0.1/0.2, hatch particle switching, and render scale 2; expose spacing down to -8 as an experimental art-direction range above the guaranteed stress target.
-- Reason: These values represent the heaviest useful guaranteed preview states for a dense ASCII text-output renderer; contrast is covered as a responsiveness drag because it changes tone mapping without increasing glyph count, while extra-negative spacing and lower void values can multiply visible glyph count at low Scale.
-- Evidence: `src/app/app-performance.ts` declares `loadProfile` with `hardLimit`, `smoothTarget`, and `smoothTargetRatio`; scenarios cover control drag, including `contrast-control-drag`, `voids-control-drag`, hatch particle select changes, spacing with a recorded degraded smooth target, animation frame sampling, animated viewport drag, viewport zoom stress, and short video export.
+- Decision: Guarantee smooth dense-stress targets for scale 6, spacing 0, voids 0, density 100, threshold 0.1/0.2, hatch particle switching, render scale 2, 1920x1080 source-image import, and 1920x1080 source-video import; expose spacing down to -8 as an experimental art-direction range above the guaranteed stress target.
+- Reason: These values represent the heaviest useful guaranteed preview states for a dense ASCII text-output renderer; source-image and source-video imports are separate media-import workloads, depth is covered as a responsiveness drag because it changes tone/size mapping without increasing glyph count, while extra-negative spacing and lower void values can multiply visible glyph count at low Scale.
+- Evidence: `src/app/app-performance.ts` declares `loadProfile` with `hardLimit`, `smoothTarget`, and `smoothTargetRatio`; scenarios cover image/video media import, control drag including `contrast-control-drag` and `voids-control-drag`, hatch particle select changes, spacing with a recorded degraded smooth target, animation frame sampling, animated viewport drag, viewport zoom stress, and short video export.
 
 ## Evidence
 
-- Source reviewed: video reference MOV metadata, extracted frame storyboard, contact sheet, local Toolcraft docs, runtime export helpers, timeline loop helper, CanvasShell behavior, controls panel action handler, and performance helpers.
+- Source reviewed: video reference MOV metadata, extracted frame storyboard, contact sheet, local Toolcraft docs, runtime fileDrop image/file behavior, media transform actions, export helpers, timeline loop helper, CanvasShell behavior, controls panel action handler, and performance helpers.
 - Video Reference Study: storyboard frames f000, f002, f004, f006, f008, and f010; transition analysis f000-f002, f002-f004, f004-f006, f006-f008, and f008-f010; behavior decomposition maps fixed black canvas, ASCII grid cells, block islands, wave bands, particle glyphs, and breathing loop to Toolcraft renderer and acceptance rows.
 - Contract applied: runtime shell through `ToolcraftApp`; product output only in `canvasContent`; timeline playback for animation/video export; Background/Image Export/Video Export sections; performance fixtures read from `app-performance.ts`.
 
@@ -257,6 +432,17 @@ Render Pipeline Inventory:
 - Run: Post-first-working extended negative spacing iteration passed targeted unit tests, `pnpm verify:quick`, `pnpm build`, targeted browser Pattern acceptance, and targeted Spacing performance.
 - Run: Post-first-working organic void-control iteration passed targeted unit tests, `pnpm verify:quick`, `pnpm build`, targeted browser Pattern acceptance, and targeted Voids performance.
 - Run: Post-first-working `-8px` spacing-range iteration passed targeted unit tests, `pnpm verify:quick`, `pnpm build`, targeted browser Pattern acceptance, and targeted Spacing performance.
+- Run: Source-image iteration passed targeted unit tests (`node_modules/.bin/vitest run src/app/app-schema.test.ts src/app/app-acceptance.test.ts src/app/app-performance.test.ts`), `npm run ai:check`, `npm test`, `npm run build`, targeted browser source upload/transform/clear/reset/SVG/video acceptance, and targeted browser media-import performance.
+- Run: Source-video iteration passed `npm run ai:check`, `npm test`, `npm run build`, targeted browser source-video upload/clear/reset/timeline/SVG/video acceptance, and targeted browser source-video media-import performance.
+- Run: Source section-label iteration passed targeted schema/acceptance tests, targeted browser source image/video acceptance, and `npm run build`.
+- Run: Source-video auto-level iteration passed `npm run typecheck`, targeted browser source-video and dark-video acceptance, targeted browser source-video performance, `npm test`, and `npm run build`.
+- Run: Cross-thickness iteration passed `npm run typecheck`, targeted app schema test, `npm test`, `npm run build`, and targeted browser Pattern plus footer export acceptance.
+- Run: Cross-weight restore iteration passed `npm run typecheck`, targeted app matrix tests, `npm test`, `npm run build`, and targeted browser Pattern plus footer export acceptance.
+- Run: Video export duration-lock iteration passed `npm run typecheck`, targeted app matrix tests, and targeted browser source-video plus video-duration export acceptance.
+- Run: Video export playback-fallback iteration passed `npm run typecheck`, targeted app matrix tests, and `npm run build`; the separate browser-server permission returned an out-of-credits error before targeted export exercise startup.
+- Run: Video export freeze-fix iteration passed `npm run typecheck`, targeted app matrix tests, targeted browser source-video export checks, targeted browser export performance check, and `npm run build`.
+- Run: Depth-control iteration passed `pnpm verify:quick` (219 app tests), `pnpm build`, real-browser min/max visual comparison, targeted SVG depth acceptance, and targeted Depth control-drag performance.
+- Note: Direct `pnpm verify:quick` was not used in this desktop session because `pnpm` is not exposed in PATH and the script recursively calls `pnpm`; equivalent local checks passed with npm and local Playwright/Vitest binaries.
 - Browser: fallback Playwright tests cover controls, product observable changes, SVG/image/video exports, timeline duration metadata, persistence reload, and performance scenarios.
 
 ## Risks

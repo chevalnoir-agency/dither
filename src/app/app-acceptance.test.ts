@@ -3136,6 +3136,8 @@ describe("Toolcraft template app acceptance coverage", () => {
 
   it("publishes control order targets for app schema tests", () => {
     expect(getToolcraftControlOrderTargets(appSchema)).toEqual([
+      "source.image",
+      "source.video",
       "pattern.particleType",
       "pattern.scale",
       "pattern.spacing",

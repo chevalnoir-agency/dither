@@ -40,6 +40,19 @@ export const appPerformance: ToolcraftPerformanceConfig = defineToolcraftPerform
         ],
       },
       {
+        interaction: "media-import",
+        invalidates: [
+          "source-image-decode",
+          "source-image-sampler",
+          "source-video-decode",
+          "source-video-frame-sampler",
+          "field-model",
+          "glyph-raster-preview",
+          "export-frame",
+        ],
+        targets: ["source.image", "source.video"],
+      },
+      {
         interaction: "timeline-playback",
         invalidates: [],
         mustNotInvalidate: ["field-model", "glyph-raster-preview"],
@@ -48,13 +61,21 @@ export const appPerformance: ToolcraftPerformanceConfig = defineToolcraftPerform
       {
         interaction: "timeline-scrub",
         invalidates: [],
-        mustNotInvalidate: ["field-model", "glyph-raster-preview"],
+        mustNotInvalidate: [
+          "source-video-frame-sampler",
+          "field-model",
+          "glyph-raster-preview",
+        ],
         targets: ["timeline.playback"],
       },
       {
         interaction: "animation-frame",
         invalidates: [],
-        mustNotInvalidate: ["field-model", "glyph-raster-preview"],
+        mustNotInvalidate: [
+          "source-video-frame-sampler",
+          "field-model",
+          "glyph-raster-preview",
+        ],
         targets: ["timeline.playback", "timeline.currentTimeSeconds"],
       },
       {
@@ -77,7 +98,54 @@ export const appPerformance: ToolcraftPerformanceConfig = defineToolcraftPerform
     ],
     passes: [
       {
+        cacheKey: ["source.image.dataUrl"],
+        id: "source-image-decode",
+        inputs: ["source.image"],
+        invalidatedBy: ["source.image"],
+        kind: "decode",
+        output: "intermediate",
+        quality: "full",
+        runsOn: "main",
+      },
+      {
+        cacheKey: ["source-image-decode", "source.image.transform", "canvas.size"],
+        id: "source-image-sampler",
+        inputs: ["source-image-decode", "media transform", "canvas size"],
+        invalidatedBy: ["source.image", "canvas.size"],
+        kind: "preprocess",
+        output: "intermediate",
+        quality: "full",
+        runsOn: "main",
+      },
+      {
+        cacheKey: ["source.video.dataUrl"],
+        id: "source-video-decode",
+        inputs: ["source.video"],
+        invalidatedBy: ["source.video"],
+        kind: "decode",
+        output: "intermediate",
+        quality: "full",
+        runsOn: "main",
+      },
+      {
         cacheKey: [
+          "source-video-decode",
+          "timeline.currentTimeSeconds",
+          "timeline.durationSeconds",
+          "canvas.size",
+        ],
+        id: "source-video-frame-sampler",
+        inputs: ["source-video-decode", "timeline progress", "canvas size", "auto levels"],
+        invalidatedBy: ["source.video", "timeline.playback", "timeline.scrub", "canvas.size"],
+        kind: "preprocess",
+        output: "intermediate",
+        quality: "full",
+        runsOn: "main",
+      },
+      {
+        cacheKey: [
+          "source-image-sampler",
+          "source-video-frame-sampler",
           "pattern.particleType",
           "pattern.scale",
           "pattern.spacing",
@@ -91,8 +159,10 @@ export const appPerformance: ToolcraftPerformanceConfig = defineToolcraftPerform
           "timeline.durationSeconds",
         ],
         id: "field-model",
-        inputs: ["schema values", "timeline progress", "canvas size"],
+        inputs: ["schema values", "timeline progress", "canvas size", "source sampler"],
         invalidatedBy: [
+          "source.image",
+          "source.video",
           "pattern.particleType",
           "pattern.scale",
           "pattern.spacing",
@@ -113,6 +183,8 @@ export const appPerformance: ToolcraftPerformanceConfig = defineToolcraftPerform
       },
       {
         cacheKey: [
+          "source-image-sampler",
+          "source-video-frame-sampler",
           "field-model",
           "appearance.background",
           "export.includeBackground",
@@ -134,6 +206,8 @@ export const appPerformance: ToolcraftPerformanceConfig = defineToolcraftPerform
       },
       {
         cacheKey: [
+          "source-image-sampler",
+          "source-video-frame-sampler",
           "field-model",
           "appearance.background",
           "export.includeBackground",
@@ -143,8 +217,10 @@ export const appPerformance: ToolcraftPerformanceConfig = defineToolcraftPerform
           "export.video.resolution",
         ],
         id: "export-frame",
-        inputs: ["field-model", "export settings", "canvas size"],
+        inputs: ["field-model", "export settings", "canvas size", "source sampler"],
         invalidatedBy: [
+          "source.image",
+          "source.video",
           "field-model",
           "appearance.background",
           "export.includeBackground",
@@ -197,6 +273,8 @@ export const appPerformance: ToolcraftPerformanceConfig = defineToolcraftPerform
     ],
     performanceRisks: [
       "Small scale, low spacing, and high density can draw many glyphs per frame.",
+      "Uploaded source images add a decode and canvas luminance sampling pass before the ASCII frame is generated.",
+      "Uploaded source videos add timeline-synchronized frame seeking, luminance auto-leveling, and sampling before each video-driven ASCII frame.",
       "Video export intentionally records frame-by-frame and can take approximately the selected timeline duration.",
     ],
     previewExportDifferenceReason:
@@ -205,15 +283,91 @@ export const appPerformance: ToolcraftPerformanceConfig = defineToolcraftPerform
     productRepresentation: "text",
     rendererStrategy: "canvas-2d",
     rendererWorkload: "text-output",
-    sourceRepresentation: "procedural-data",
+    sourceRepresentation: "video-media",
     whyNotAlternativeStrategies: [
       "DOM preview would require thousands of positioned text nodes and would not match the dense reference animation workload.",
       "SVG preview would preserve vector glyphs but would produce a very large animated node tree at the stress scale.",
-      "WebGL/WebGPU would help shader pixel fields, but this product's primitive is monospace text glyphs and still SVG export must remain text/vector based.",
+      "WebGL/WebGPU would help shader pixel fields, but this product's primitive is monospace text glyphs, source sampling is bounded to uploaded media frames, and still SVG export must remain text/vector based.",
     ],
   },
   rendererWorkload: "text-output",
   scenarios: [
+    {
+      automated: true,
+      automatedTestName: "source image import prepares dither sampler within budget",
+      browser: true,
+      browserTestName: "browser perf: source image import prepares dither sampler",
+      budget: {
+        maxFrameGapMs: 120,
+        maxInteractionMs: 1800,
+        maxLongTaskMs: 250,
+      },
+      controlLabel: "Image",
+      expectedObservable:
+        "Uploading a 1920x1080 source image decodes it, applies transform-aware cover sampling, and updates the ASCII dither preview.",
+      fixture: "1920x1080 high-contrast source image upload fixture",
+      id: "source-image-media-import",
+      interaction: "media-import",
+      stressFixture: {
+        kind: "media",
+        loadProfile: {
+          hardLimit: { height: 1080, width: 1920 },
+          metric: "custom",
+          smoothTarget: { height: 1080, width: 1920 },
+          smoothTargetRatio: 1,
+          target: "source.image",
+          userFacingRange: "fully-guaranteed",
+        },
+        reason:
+          "A 1920x1080 upload matches the default output size and exercises the source decode plus luminance sampler path.",
+        value: { height: 1080, width: 1920 },
+      },
+      target: "source.image",
+      values: {
+        default: "empty",
+        max: { height: 1080, width: 1920 },
+        min: "empty",
+      },
+      workload: true,
+    },
+    {
+      automated: true,
+      automatedTestName: "source video import prepares dither sampler within budget",
+      browser: true,
+      browserTestName: "browser perf: source video import prepares dither sampler",
+      budget: {
+        maxFrameGapMs: 120,
+        maxInteractionMs: 2000,
+        maxLongTaskMs: 250,
+      },
+      controlLabel: "Video",
+      expectedObservable:
+        "Uploading a 1920x1080 source video decodes it, maps frames to timeline progress, and updates the ASCII dither preview.",
+      fixture: "1920x1080 high-contrast source video upload fixture",
+      id: "source-video-media-import",
+      interaction: "media-import",
+      stressFixture: {
+        kind: "media",
+        loadProfile: {
+          hardLimit: { height: 1080, width: 1920 },
+          metric: "custom",
+          smoothTarget: { height: 1080, width: 1920 },
+          smoothTargetRatio: 1,
+          target: "source.video",
+          userFacingRange: "fully-guaranteed",
+        },
+        reason:
+          "A 1920x1080 upload matches the default output size and exercises source video decode plus timeline frame sampling.",
+        value: { height: 1080, width: 1920 },
+      },
+      target: "source.video",
+      values: {
+        default: "empty",
+        max: { height: 1080, width: 1920 },
+        min: "empty",
+      },
+      workload: true,
+    },
     {
       automated: true,
       automatedTestName: "density control drag remains responsive under heavy ASCII load",
@@ -763,18 +917,18 @@ export const appPerformance: ToolcraftPerformanceConfig = defineToolcraftPerform
     },
     {
       automated: true,
-      automatedTestName: "contrast drag keeps preview responsive",
+      automatedTestName: "depth drag keeps preview responsive",
       browser: true,
-      browserTestName: "browser perf: contrast control drag stays responsive",
+      browserTestName: "browser perf: depth control drag stays responsive",
       budget: {
         maxFrameGapMs: 120,
         maxInteractionMs: 900,
         maxLongTaskMs: 180,
       },
-      controlLabel: "Contrast",
+      controlLabel: "Depth",
       expectedObservable:
-        "Dragging Contrast updates particle tone mapping without resizing the ASCII grid.",
-      fixture: "default ASCII preview with contrast dragged",
+        "Dragging Depth updates particle tone and apparent size without resizing the ASCII grid.",
+      fixture: "default ASCII preview with depth dragged",
       id: "contrast-control-drag",
       interaction: "control-drag",
       target: "dither.contrast",

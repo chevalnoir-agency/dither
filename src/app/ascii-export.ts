@@ -6,11 +6,20 @@ import {
 } from "@/toolcraft/runtime";
 
 import {
+  createAsciiSourceSampler,
   createAsciiPatternFrame,
   createAsciiPatternSvg,
   drawAsciiPattern,
+  getAsciiSourceImageAsset,
+  getAsciiSourceVideoAsset,
+  getAsciiSourceVideoTime,
   getAsciiPatternProgress,
   getAsciiPatternSettings,
+  getAsciiSourceSamplerSize,
+  loadAsciiSourceImage,
+  loadAsciiSourceVideo,
+  seekAsciiSourceVideo,
+  type AsciiSourceSampler,
   shouldIncludeAsciiVideoBackground,
 } from "./ascii-pattern";
 
@@ -104,17 +113,182 @@ async function wait(ms: number): Promise<void> {
   });
 }
 
+type ExportSourceSamplerFactory = (
+  timeSeconds?: number,
+) => Promise<AsciiSourceSampler | undefined>;
+
+type VideoExportSourceSamplerFactory = {
+  cleanup: () => void;
+  getSourceSampler: ExportSourceSamplerFactory;
+};
+
+function stopRecorderSafely(recorder: MediaRecorder): void {
+  if (recorder.state === "inactive") {
+    return;
+  }
+
+  try {
+    recorder.requestData();
+  } catch {
+    // Some engines only allow requestData once recording has fully started.
+  }
+
+  recorder.stop();
+}
+
+async function waitForRecordedBlob(
+  finished: Promise<Blob>,
+  timeoutMs: number,
+): Promise<Blob> {
+  let timeoutId = 0;
+  const timeout = new Promise<Blob>((_, reject) => {
+    timeoutId = window.setTimeout(() => {
+      reject(new Error("Video export did not finish encoding. Try WebM or a lower resolution."));
+    }, timeoutMs);
+  });
+
+  try {
+    return await Promise.race([finished, timeout]);
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
+
+async function createExportSourceSamplerFactory(
+  state: ToolcraftState,
+): Promise<ExportSourceSamplerFactory> {
+  const settings = getAsciiPatternSettings(state);
+  const samplerSize = getAsciiSourceSamplerSize({
+    height: state.canvas.size.height,
+    settings,
+    width: state.canvas.size.width,
+  });
+  const sourceVideoAsset = getAsciiSourceVideoAsset(state);
+
+  if (sourceVideoAsset) {
+    const sourceVideo = await loadAsciiSourceVideo(sourceVideoAsset);
+
+    if (!sourceVideo) {
+      return async () => undefined;
+    }
+
+    return async (timeSeconds = state.timeline.currentTimeSeconds) => {
+      await seekAsciiSourceVideo(
+        sourceVideo.video,
+        getAsciiSourceVideoTime({
+          sourceDurationSeconds: sourceVideo.durationSeconds,
+          state,
+          timeSeconds,
+        }),
+      );
+
+      return createAsciiSourceSampler({
+        image: sourceVideo.video,
+        ...samplerSize,
+        sourceHeight: sourceVideo.sourceHeight,
+        sourceWidth: sourceVideo.sourceWidth,
+        targetHeight: state.canvas.size.height,
+        targetWidth: state.canvas.size.width,
+      });
+    };
+  }
+
+  const sourceImageAsset = getAsciiSourceImageAsset(state);
+
+  if (!sourceImageAsset) {
+    return async () => undefined;
+  }
+
+  const sourceImage = await loadAsciiSourceImage(sourceImageAsset);
+
+  if (!sourceImage) {
+    return async () => undefined;
+  }
+
+  const sourceSampler = createAsciiSourceSampler({
+    image: sourceImage.image,
+    ...samplerSize,
+    sourceHeight: sourceImage.sourceHeight,
+    sourceWidth: sourceImage.sourceWidth,
+    targetHeight: state.canvas.size.height,
+    targetWidth: state.canvas.size.width,
+    transform: sourceImageAsset.transform,
+  });
+
+  return async () => sourceSampler;
+}
+
+async function createVideoExportSourceSamplerFactory(
+  state: ToolcraftState,
+  durationSeconds: number,
+): Promise<VideoExportSourceSamplerFactory> {
+  const settings = getAsciiPatternSettings(state);
+  const samplerSize = getAsciiSourceSamplerSize({
+    height: state.canvas.size.height,
+    settings,
+    width: state.canvas.size.width,
+  });
+  const sourceVideoAsset = getAsciiSourceVideoAsset(state);
+
+  if (!sourceVideoAsset) {
+    return {
+      cleanup: () => undefined,
+      getSourceSampler: await createExportSourceSamplerFactory(state),
+    };
+  }
+
+  const sourceVideo = await loadAsciiSourceVideo(sourceVideoAsset);
+
+  if (!sourceVideo) {
+    return {
+      cleanup: () => undefined,
+      getSourceSampler: async () => undefined,
+    };
+  }
+
+  const video = sourceVideo.video;
+  const playbackRate = Math.max(
+    0.0625,
+    Math.min(16, sourceVideo.durationSeconds / Math.max(0.001, durationSeconds)),
+  );
+
+  await seekAsciiSourceVideo(video, 0);
+  video.playbackRate = playbackRate;
+  const playPromise = video.play();
+  await Promise.race([playPromise.catch(() => undefined), wait(1000)]);
+
+  return {
+    cleanup: () => {
+      video.pause();
+      video.removeAttribute("src");
+      video.load();
+    },
+    getSourceSampler: async () =>
+      createAsciiSourceSampler({
+        image: video,
+        ...samplerSize,
+        sourceHeight: sourceVideo.sourceHeight,
+        sourceWidth: sourceVideo.sourceWidth,
+        targetHeight: state.canvas.size.height,
+        targetWidth: state.canvas.size.width,
+      }),
+  };
+}
+
 export async function exportAsciiSvg(
   state: ToolcraftState,
   reportProgress: (progress: number) => void,
 ): Promise<void> {
   const settings = getAsciiPatternSettings(state);
   const progress = getAsciiPatternProgress(state);
+  const getSourceSampler = await createExportSourceSamplerFactory(state);
+  const sourceSampler = await getSourceSampler(state.timeline.currentTimeSeconds);
   const frame = createAsciiPatternFrame({
     height: state.canvas.size.height,
     includeBackground: settings.includeBackground,
     progress,
     settings,
+    sourceSampler,
     width: state.canvas.size.width,
   });
   reportProgress(0.45);
@@ -139,6 +313,8 @@ export async function exportAsciiImage(
 ): Promise<void> {
   const settings = getAsciiPatternSettings(state);
   const includeBackground = settings.includeBackground;
+  const getSourceSampler = await createExportSourceSamplerFactory(state);
+  const sourceSampler = await getSourceSampler(state.timeline.currentTimeSeconds);
   const imageResolution =
     typeof state.values["export.image.resolution"] === "string"
       ? state.values["export.image.resolution"]
@@ -152,6 +328,7 @@ export async function exportAsciiImage(
         includeBackground,
         progress: getAsciiPatternProgress(state),
         settings,
+        sourceSampler,
         width: cssWidth,
       });
     },
@@ -185,6 +362,11 @@ export async function exportAsciiVideo(
     state,
   });
   const recorderTarget = getRecorderMimeType(settings.videoFormat);
+  const durationSeconds = Math.max(1, state.timeline.durationSeconds);
+  const sourceSamplerFactory = await createVideoExportSourceSamplerFactory(
+    state,
+    durationSeconds,
+  );
   const canvas = document.createElement("canvas");
   canvas.width = width;
   canvas.height = height;
@@ -194,7 +376,7 @@ export async function exportAsciiVideo(
     throw new Error("Video export requires a 2D canvas context.");
   }
 
-  const stream = canvas.captureStream(0);
+  const stream = canvas.captureStream(videoFrameRate);
   const [track] = stream.getVideoTracks();
 
   if (!track) {
@@ -203,9 +385,7 @@ export async function exportAsciiVideo(
 
   const chunks: Blob[] = [];
   const recorder = new MediaRecorder(stream, { mimeType: recorderTarget.mimeType });
-  const durationSeconds = Math.max(1, state.timeline.durationSeconds);
   const frameCount = Math.max(2, Math.ceil(durationSeconds * videoFrameRate));
-  const frameIntervalMs = 1000 / videoFrameRate;
   const includeBackground =
     shouldIncludeAsciiVideoBackground(state) &&
     shouldIncludeToolcraftExportBackground({
@@ -235,37 +415,57 @@ export async function exportAsciiVideo(
     });
   });
 
-  recorder.start();
+  recorder.start(1000);
+  const recordingStartedAt = performance.now();
 
   try {
     for (let frameIndex = 0; frameIndex <= frameCount; frameIndex += 1) {
+      const targetTimeMs = recordingStartedAt + (frameIndex / frameCount) * durationSeconds * 1000;
+      const delayMs = targetTimeMs - performance.now();
+
+      if (delayMs > 0) {
+        await wait(delayMs);
+      }
+
       const timeSeconds = Math.min(
         durationSeconds,
         (frameIndex / frameCount) * durationSeconds,
       );
       context.save();
       context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+      const sourceSampler = await sourceSamplerFactory.getSourceSampler(timeSeconds);
       drawAsciiPattern(context, {
         height: state.canvas.size.height,
         includeBackground,
         progress: getAsciiPatternProgress(state, timeSeconds),
         settings,
+        sourceSampler,
         width: state.canvas.size.width,
       });
       context.restore();
       (track as CanvasCaptureMediaStreamTrack).requestFrame?.();
       reportProgress(frameIndex / frameCount);
-      await wait(frameIntervalMs);
+
+      if (delayMs <= 0 && frameIndex % 2 === 0) {
+        await wait(0);
+      }
     }
   } catch (error) {
-    recorder.stop();
+    stopRecorderSafely(recorder);
     track.stop();
+    sourceSamplerFactory.cleanup();
     throw error;
   }
 
-  recorder.stop();
-  const blob = await finished;
-  track.stop();
+  stopRecorderSafely(recorder);
+  let blob: Blob;
+
+  try {
+    blob = await waitForRecordedBlob(finished, Math.max(5000, durationSeconds * 2000));
+  } finally {
+    track.stop();
+    sourceSamplerFactory.cleanup();
+  }
   const fileName = `${getSafeFileStem()}.${recorderTarget.extension}`;
   rememberExport({
     blob,
