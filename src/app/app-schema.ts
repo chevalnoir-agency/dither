@@ -36,7 +36,20 @@ export const appSchema = defineToolcraft({
               target: "source.image",
               type: "fileDrop",
             },
+            invert: {
+              defaultValue: false,
+              description:
+                "Swaps the uploaded image's light and dark values before dithering.",
+              label: "Invert",
+              orderRole: "detail",
+              performanceReason:
+                "Inverting a source image adds one constant luminance mapping step without changing the sampler or particle workload.",
+              performanceRole: "responsiveness",
+              target: "source.image.invert",
+              type: "checkbox",
+            },
           },
+          layout: "standalone",
           title: "Source Image",
         },
         {
@@ -55,7 +68,20 @@ export const appSchema = defineToolcraft({
               target: "source.video",
               type: "fileDrop",
             },
+            invert: {
+              defaultValue: false,
+              description:
+                "Swaps the uploaded video's light and dark values before dithering.",
+              label: "Invert",
+              orderRole: "detail",
+              performanceReason:
+                "Inverting a source video adds one constant luminance mapping step without changing frame decoding or particle workload.",
+              performanceRole: "responsiveness",
+              target: "source.video.invert",
+              type: "checkbox",
+            },
           },
+          layout: "standalone",
           title: "Source Video",
         },
         {
@@ -183,13 +209,13 @@ export const appSchema = defineToolcraft({
             contrast: {
               defaultValue: 2,
               description:
-                "Adds visual depth by separating weak and strong particles through both tone and apparent size.",
+                "Progressively expands media tones and shadow detail across the full 0-to-3 range.",
               label: "Depth",
-              max: 2,
+              max: 3,
               min: 0,
               orderRole: "strength",
               performanceReason:
-                "Depth changes per-glyph tone and size without changing grid size or particle count.",
+                "Depth changes per-glyph color mapping without changing geometry, grid size, or particle count.",
               performanceRole: "responsiveness",
               step: 0.05,
               target: "dither.contrast",
@@ -294,10 +320,11 @@ export const appSchema = defineToolcraft({
               options: [
                 { label: "MP4", value: "mp4" },
                 { label: "WebM", value: "webm" },
+                { label: "GIF", value: "gif" },
               ],
               orderRole: "mode",
               performanceReason:
-                "Video format changes the MediaRecorder container only during export.",
+                "Video format selects MediaRecorder video or optimized palette GIF encoding during export.",
               performanceRole: "responsiveness",
               target: "export.video.format",
               type: "select",

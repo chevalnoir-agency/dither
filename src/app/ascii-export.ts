@@ -11,7 +11,9 @@ import {
   createAsciiPatternSvg,
   drawAsciiPattern,
   getAsciiSourceImageAsset,
+  getAsciiSourceImageInvert,
   getAsciiSourceVideoAsset,
+  getAsciiSourceVideoInvert,
   getAsciiSourceVideoTime,
   getAsciiPatternProgress,
   getAsciiPatternSettings,
@@ -38,6 +40,22 @@ type WindowWithExports = Window & {
 };
 
 const videoFrameRate = 30;
+const gifFrameRate = 12;
+
+type GifWorkerRequest =
+  {
+    delayMs: number;
+    first: boolean;
+    height: number;
+    palette?: number[][];
+    rgba: ArrayBuffer;
+    type: "encode-frame";
+    width: number;
+  };
+
+type GifWorkerResponse =
+  | { bytes: ArrayBuffer; palette?: number[][]; type: "frame-complete" }
+  | { message: string; type: "error" };
 
 function getSafeFileStem(): string {
   return "ascii-dither-field";
@@ -113,6 +131,36 @@ async function wait(ms: number): Promise<void> {
   });
 }
 
+function sendGifWorkerRequest(
+  worker: Worker,
+  request: GifWorkerRequest,
+  transfer: Transferable[] = [],
+): Promise<GifWorkerResponse> {
+  return new Promise((resolve, reject) => {
+    const handleError = (event: ErrorEvent): void => {
+      cleanup();
+      reject(event.error ?? new Error(event.message || "GIF encoder worker failed."));
+    };
+    const handleMessage = (event: MessageEvent<GifWorkerResponse>): void => {
+      cleanup();
+      if (event.data.type === "error") {
+        reject(new Error(event.data.message));
+        return;
+      }
+
+      resolve(event.data);
+    };
+    const cleanup = (): void => {
+      worker.removeEventListener("error", handleError);
+      worker.removeEventListener("message", handleMessage);
+    };
+
+    worker.addEventListener("error", handleError);
+    worker.addEventListener("message", handleMessage);
+    worker.postMessage(request, transfer);
+  });
+}
+
 type ExportSourceSamplerFactory = (
   timeSeconds?: number,
 ) => Promise<AsciiSourceSampler | undefined>;
@@ -184,6 +232,7 @@ async function createExportSourceSamplerFactory(
 
       return createAsciiSourceSampler({
         image: sourceVideo.video,
+        invertLuminance: getAsciiSourceVideoInvert(state),
         ...samplerSize,
         sourceHeight: sourceVideo.sourceHeight,
         sourceWidth: sourceVideo.sourceWidth,
@@ -207,6 +256,7 @@ async function createExportSourceSamplerFactory(
 
   const sourceSampler = createAsciiSourceSampler({
     image: sourceImage.image,
+    invertLuminance: getAsciiSourceImageInvert(state),
     ...samplerSize,
     sourceHeight: sourceImage.sourceHeight,
     sourceWidth: sourceImage.sourceWidth,
@@ -220,7 +270,6 @@ async function createExportSourceSamplerFactory(
 
 async function createVideoExportSourceSamplerFactory(
   state: ToolcraftState,
-  durationSeconds: number,
 ): Promise<VideoExportSourceSamplerFactory> {
   const settings = getAsciiPatternSettings(state);
   const samplerSize = getAsciiSourceSamplerSize({
@@ -247,13 +296,8 @@ async function createVideoExportSourceSamplerFactory(
   }
 
   const video = sourceVideo.video;
-  const playbackRate = Math.max(
-    0.0625,
-    Math.min(16, sourceVideo.durationSeconds / Math.max(0.001, durationSeconds)),
-  );
-
   await seekAsciiSourceVideo(video, 0);
-  video.playbackRate = playbackRate;
+  video.playbackRate = 1;
   const playPromise = video.play();
   await Promise.race([playPromise.catch(() => undefined), wait(1000)]);
 
@@ -266,6 +310,7 @@ async function createVideoExportSourceSamplerFactory(
     getSourceSampler: async () =>
       createAsciiSourceSampler({
         image: video,
+        invertLuminance: getAsciiSourceVideoInvert(state),
         ...samplerSize,
         sourceHeight: sourceVideo.sourceHeight,
         sourceWidth: sourceVideo.sourceWidth,
@@ -357,16 +402,19 @@ export async function exportAsciiVideo(
   reportProgress: (progress: number) => void,
 ): Promise<void> {
   const settings = getAsciiPatternSettings(state);
+
+  if (settings.videoFormat === "gif") {
+    await exportAsciiGif(state, reportProgress);
+    return;
+  }
+
   const { height, pixelRatio, width } = getToolcraftVideoExportSize({
     resolution: settings.videoResolution,
     state,
   });
   const recorderTarget = getRecorderMimeType(settings.videoFormat);
   const durationSeconds = Math.max(1, state.timeline.durationSeconds);
-  const sourceSamplerFactory = await createVideoExportSourceSamplerFactory(
-    state,
-    durationSeconds,
-  );
+  const sourceSamplerFactory = await createVideoExportSourceSamplerFactory(state);
   const canvas = document.createElement("canvas");
   canvas.width = width;
   canvas.height = height;
@@ -478,4 +526,155 @@ export async function exportAsciiVideo(
   });
   downloadBlob(blob, fileName);
   reportProgress(1);
+}
+
+async function exportAsciiGif(
+  state: ToolcraftState,
+  reportProgress: (progress: number) => void,
+): Promise<void> {
+  const settings = getAsciiPatternSettings(state);
+  const { height, pixelRatio, width } = getToolcraftVideoExportSize({
+    resolution: settings.videoResolution,
+    state,
+  });
+  const durationSeconds = Math.max(1, state.timeline.durationSeconds);
+  const frameCount = Math.max(2, Math.round(durationSeconds * gifFrameRate));
+  const totalDelayCentiseconds = Math.max(1, Math.round(durationSeconds * 100));
+  const getSourceSampler = await createExportSourceSamplerFactory(state);
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+
+  if (!context) {
+    throw new Error("GIF export requires a 2D canvas context.");
+  }
+
+  const includeBackground =
+    shouldIncludeAsciiVideoBackground(state) &&
+    shouldIncludeToolcraftExportBackground({
+      format: "video",
+      schema: state.schema,
+    });
+  const workerCount = Math.min(
+    4,
+    Math.max(2, Math.floor((navigator.hardwareConcurrency || 4) - 1)),
+  );
+  const workers = Array.from(
+    { length: workerCount },
+    () => new Worker(new URL("./gif-encoder.worker.ts", import.meta.url), { type: "module" }),
+  );
+  const chunks = new Array<ArrayBuffer>(frameCount);
+  const inFlight = new Array<Promise<void> | undefined>(workerCount);
+  let completedFrames = 0;
+
+  const getFrameDelayMs = (frameIndex: number): number => {
+    const delayStart = Math.round((frameIndex / frameCount) * totalDelayCentiseconds);
+    const delayEnd = Math.round(((frameIndex + 1) / frameCount) * totalDelayCentiseconds);
+    return Math.max(1, delayEnd - delayStart) * 10;
+  };
+  const renderFrame = async (frameIndex: number): Promise<Uint8ClampedArray> => {
+    const timeSeconds = (frameIndex / frameCount) * durationSeconds;
+    const sourceSampler = await getSourceSampler(timeSeconds);
+
+    context.save();
+    context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+    drawAsciiPattern(context, {
+      height: state.canvas.size.height,
+      includeBackground,
+      progress: getAsciiPatternProgress(state, timeSeconds),
+      settings,
+      sourceSampler,
+      width: state.canvas.size.width,
+    });
+    context.restore();
+    return context.getImageData(0, 0, width, height).data;
+  };
+
+  try {
+    const firstRgba = await renderFrame(0);
+    const firstRgbaBuffer = firstRgba.buffer as ArrayBuffer;
+    const firstResult = await sendGifWorkerRequest(
+      workers[0]!,
+      {
+        delayMs: getFrameDelayMs(0),
+        first: true,
+        height,
+        rgba: firstRgbaBuffer,
+        type: "encode-frame",
+        width,
+      },
+      [firstRgbaBuffer],
+    );
+    if (firstResult.type !== "frame-complete" || !firstResult.palette) {
+      throw new Error("GIF export could not create its shared color palette.");
+    }
+    chunks[0] = firstResult.bytes;
+    const palette = firstResult.palette;
+    completedFrames = 1;
+    reportProgress((completedFrames / frameCount) * 0.95);
+
+    for (let frameIndex = 1; frameIndex < frameCount; frameIndex += 1) {
+      const workerIndex = frameIndex % workers.length;
+      await inFlight[workerIndex];
+      const rgba = await renderFrame(frameIndex);
+      const rgbaBuffer = rgba.buffer as ArrayBuffer;
+      inFlight[workerIndex] = sendGifWorkerRequest(
+        workers[workerIndex]!,
+        {
+          delayMs: getFrameDelayMs(frameIndex),
+          first: false,
+          height,
+          palette,
+          rgba: rgbaBuffer,
+          type: "encode-frame",
+          width,
+        },
+        [rgbaBuffer],
+      ).then((result) => {
+        if (result.type !== "frame-complete") {
+          throw new Error("GIF export did not return an encoded frame.");
+        }
+
+        chunks[frameIndex] = result.bytes;
+        completedFrames += 1;
+        reportProgress((completedFrames / frameCount) * 0.95);
+      });
+    }
+    await Promise.all(inFlight.filter((promise): promise is Promise<void> => Boolean(promise)));
+
+    if (chunks.some((chunk) => !chunk)) {
+      throw new Error("GIF export is missing one or more encoded frames.");
+    }
+
+    const byteLength = chunks.reduce((total, chunk) => total + chunk.byteLength, 1);
+    const bytes = new Uint8Array(byteLength);
+    let byteOffset = 0;
+    for (const chunk of chunks) {
+      bytes.set(new Uint8Array(chunk), byteOffset);
+      byteOffset += chunk.byteLength;
+    }
+    bytes[byteOffset] = 0x3b;
+    const blob = new Blob([bytes], { type: "image/gif" });
+    if (blob.size === 0) {
+      throw new Error("GIF export produced an empty blob.");
+    }
+
+    const fileName = `${getSafeFileStem()}.gif`;
+    rememberExport({
+      blob,
+      durationSeconds,
+      fileName,
+      height,
+      kind: "video",
+      type: blob.type,
+      width,
+    });
+    downloadBlob(blob, fileName);
+    reportProgress(1);
+  } finally {
+    for (const worker of workers) {
+      worker.terminate();
+    }
+  }
 }

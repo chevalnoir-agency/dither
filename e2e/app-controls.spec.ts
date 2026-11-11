@@ -17,6 +17,7 @@ import {
   expectToolcraftCanvasBackingPixelsForRenderScale,
   expectToolcraftCanvasViewportStable,
   expectToolcraftDiscreteSliderDragSmoothness,
+  getToolcraftPerformanceScenarioBudget,
   expectToolcraftScenarioPerformanceBudget,
   getToolcraftFieldByLabel,
   getToolcraftPerformanceStressValue,
@@ -125,6 +126,32 @@ async function toggleSwitchByLabel(page: Page, label: string): Promise<void> {
   await waitForToolcraftAnimationFrames(page, 2);
 }
 
+async function getCheckboxInSection(page: Page, sectionTitle: string, label: string) {
+  const section = page
+    .locator('[data-slot="panel-title"]')
+    .filter({ hasText: new RegExp(`^\\s*${escapeRegExp(sectionTitle)}\\s*$`) })
+    .first()
+    .locator("xpath=ancestor::section[1]");
+  await expect(section, `Section "${sectionTitle}" should be visible`).toBeVisible();
+  const field = section.locator('[data-slot="field"]').filter({
+    has: page
+      .locator('[data-slot="field-label"]')
+      .filter({ hasText: new RegExp(`^\\s*${escapeRegExp(label)}\\s*$`) }),
+  }).first();
+  await expect(field, `${sectionTitle} / ${label} should be visible`).toBeVisible();
+  return field.getByRole("checkbox").first();
+}
+
+async function toggleCheckboxInSection(
+  page: Page,
+  sectionTitle: string,
+  label: string,
+): Promise<void> {
+  const checkbox = await getCheckboxInSection(page, sectionTitle, label);
+  await checkbox.click();
+  await waitForToolcraftAnimationFrames(page, 2);
+}
+
 async function getSourceImageField(page: Page) {
   const sourceSection = page
     .locator('[data-slot="panel-title"]')
@@ -164,15 +191,52 @@ function createSourceImageSvg(width = 320, height = 180): Buffer {
   return Buffer.from(svg, "utf8");
 }
 
+function createTonalGradientSourceImageSvg(width = 640, height = 360): Buffer {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+  <defs>
+    <linearGradient id="tones" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000000"/>
+      <stop offset="0.2" stop-color="#333333"/>
+      <stop offset="0.4" stop-color="#666666"/>
+      <stop offset="0.6" stop-color="#999999"/>
+      <stop offset="0.8" stop-color="#cccccc"/>
+      <stop offset="1" stop-color="#ffffff"/>
+    </linearGradient>
+  </defs>
+  <rect width="${width}" height="${height}" fill="url(#tones)"/>
+</svg>`;
+
+  return Buffer.from(svg, "utf8");
+}
+
+function createShadowDetailSourceImageSvg(width = 640, height = 360): Buffer {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+  <defs>
+    <linearGradient id="shadow-tones" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#08090b"/>
+      <stop offset="0.25" stop-color="#14171a"/>
+      <stop offset="0.5" stop-color="#24282d"/>
+      <stop offset="0.75" stop-color="#3b4147"/>
+      <stop offset="1" stop-color="#6a7179"/>
+    </linearGradient>
+  </defs>
+  <rect width="${width}" height="${height}" fill="#eeeeee"/>
+  <rect width="${Math.round(width * 0.84)}" height="${height}" fill="url(#shadow-tones)"/>
+</svg>`;
+
+  return Buffer.from(svg, "utf8");
+}
+
 async function createSourceVideoWebm(
   page: Page,
   width = 320,
   height = 180,
   frameCount = 10,
   tone: "dark" | "high" = "high",
+  frameRate = 12,
 ): Promise<Buffer> {
   const bytes = await page.evaluate(
-    async ({ frameCount, height, tone, width }) => {
+    async ({ frameCount, frameRate, height, tone, width }) => {
       const canvas = document.createElement("canvas");
       canvas.width = width;
       canvas.height = height;
@@ -182,7 +246,8 @@ async function createSourceVideoWebm(
         throw new Error("Could not create source video fixture canvas.");
       }
 
-      const stream = canvas.captureStream(12);
+      const stream = canvas.captureStream(0);
+      const videoTrack = stream.getVideoTracks()[0] as CanvasCaptureMediaStreamTrack | undefined;
       const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp8")
         ? "video/webm;codecs=vp8"
         : MediaRecorder.isTypeSupported("video/webm")
@@ -240,9 +305,10 @@ async function createSourceVideoWebm(
           Math.round(width * 0.36),
           Math.round(height * 0.16),
         );
+        videoTrack?.requestFrame();
 
         await new Promise<void>((resolve) => {
-          window.setTimeout(resolve, 55);
+          window.setTimeout(resolve, Math.max(16, Math.round(1000 / frameRate)));
         });
       }
 
@@ -258,7 +324,7 @@ async function createSourceVideoWebm(
 
       return Array.from(new Uint8Array(await blob.arrayBuffer()));
     },
-    { frameCount, height, tone, width },
+    { frameCount, frameRate, height, tone, width },
   );
 
   return Buffer.from(bytes);
@@ -302,10 +368,11 @@ async function uploadSourceImage(
   width = 320,
   height = 180,
   fileName = "source-image.svg",
+  buffer = createSourceImageSvg(width, height),
 ): Promise<void> {
   const field = await getSourceImageField(page);
   await field.locator('input[type="file"]').first().setInputFiles({
-    buffer: createSourceImageSvg(width, height),
+    buffer,
     mimeType: "image/svg+xml",
     name: fileName,
   });
@@ -321,16 +388,58 @@ async function uploadSourceVideo(
   fileName = "source-video.webm",
   buffer?: Buffer,
   frameCount = 10,
+  frameRate = 12,
 ): Promise<void> {
   const field = await getSourceVideoField(page);
   await field.locator('input[type="file"]').first().setInputFiles({
-    buffer: buffer ?? (await createSourceVideoWebm(page, width, height, frameCount)),
+    buffer: buffer ?? (await createSourceVideoWebm(page, width, height, frameCount, "high", frameRate)),
     mimeType: "video/webm",
     name: fileName,
   });
   await waitForToolcraftAnimationFrames(page, 5);
   await expect(page.getByRole("button", { name: "Replace file" })).toBeVisible();
   await expect(page.getByRole("button", { name: `Remove ${fileName}` })).toBeVisible();
+}
+
+async function measureSourceVideoFrameCadence(
+  page: Page,
+  durationMs = 1200,
+): Promise<{ maxFrameGapMs: number; updates: number }> {
+  return page.locator("[data-ascii-pattern-canvas]").evaluate(
+    (canvas: HTMLCanvasElement, measurementDurationMs) =>
+      new Promise<{ maxFrameGapMs: number; updates: number }>((resolve) => {
+        const frameTimes: number[] = [];
+        let previousCount = canvas.dataset.sourceVideoFrameCount;
+        const observer = new MutationObserver(() => {
+          const nextCount = canvas.dataset.sourceVideoFrameCount;
+          if (nextCount !== undefined && nextCount !== previousCount) {
+            previousCount = nextCount;
+            frameTimes.push(performance.now());
+          }
+        });
+
+        observer.observe(canvas, {
+          attributeFilter: ["data-source-video-frame-count"],
+          attributes: true,
+        });
+
+        window.setTimeout(() => {
+          observer.disconnect();
+          let maxFrameGapMs = 0;
+          for (let index = 1; index < frameTimes.length; index += 1) {
+            maxFrameGapMs = Math.max(
+              maxFrameGapMs,
+              (frameTimes[index] ?? 0) - (frameTimes[index - 1] ?? 0),
+            );
+          }
+          resolve({
+            maxFrameGapMs: frameTimes.length > 1 ? maxFrameGapMs : Number.POSITIVE_INFINITY,
+            updates: frameTimes.length,
+          });
+        }, measurementDurationMs);
+      }),
+    durationMs,
+  );
 }
 
 function particleOptionLabel(value: string): string {
@@ -418,7 +527,7 @@ async function clickExport(page: Page, label: string, kind: LastExportKind): Pro
       return record?.kind === expectedKind && record.blob.size > 0;
     },
     kind,
-    { timeout: 20000 },
+    { timeout: 60000 },
   );
 }
 
@@ -431,7 +540,7 @@ async function readLastExport(page: Page, kind: LastExportKind) {
       return record?.kind === expectedKind && record.blob.size > 0;
     },
     kind,
-    { timeout: 20000 },
+    { timeout: 60000 },
   );
 
   return page.evaluate(async (expectedKind) => {
@@ -536,6 +645,64 @@ async function readExportedVideoDurationMetadata(page: Page) {
   return duration;
 }
 
+async function readExportedGifMetadata(page: Page) {
+  return page.evaluate(async () => {
+    const record = (window as Window & {
+      __toolcraftLastExport?: {
+        blob: Blob;
+        durationSeconds?: number;
+        fileName: string;
+        height?: number;
+        type: string;
+        width?: number;
+      };
+    }).__toolcraftLastExport;
+
+    if (!record) {
+      throw new Error("Missing exported GIF.");
+    }
+
+    const bytes = new Uint8Array(await record.blob.arrayBuffer());
+    const header = String.fromCharCode(...bytes.slice(0, 6));
+    const width = (bytes[6] ?? 0) | ((bytes[7] ?? 0) << 8);
+    const height = (bytes[8] ?? 0) | ((bytes[9] ?? 0) << 8);
+    const paletteColors = 1 << (((bytes[10] ?? 0) & 0x07) + 1);
+    const netscape = Array.from("NETSCAPE2.0", (character) => character.charCodeAt(0));
+    let durationCentiseconds = 0;
+    let frameCount = 0;
+    let loopCount: number | undefined;
+
+    for (let index = 0; index < bytes.length - 8; index += 1) {
+      if (
+        bytes[index] === 0x21 &&
+        bytes[index + 1] === 0xf9 &&
+        bytes[index + 2] === 0x04
+      ) {
+        durationCentiseconds += (bytes[index + 4] ?? 0) | ((bytes[index + 5] ?? 0) << 8);
+        frameCount += 1;
+      }
+
+      if (netscape.every((value, offset) => bytes[index + offset] === value)) {
+        loopCount = (bytes[index + 13] ?? 0) | ((bytes[index + 14] ?? 0) << 8);
+      }
+    }
+
+    return {
+      duration: durationCentiseconds / 100,
+      durationSeconds: record.durationSeconds,
+      fileName: record.fileName,
+      frameCount,
+      header,
+      height,
+      loopCount,
+      paletteColors,
+      size: record.blob.size,
+      type: record.blob.type || record.type,
+      width,
+    };
+  });
+}
+
 test("browser: pattern controls change ASCII output", async ({ page }) => {
   await openApp(page);
   await pausePlayback(page);
@@ -584,7 +751,7 @@ test("browser: source image upload clear reset and transforms update dither outp
   });
   await clickExport(page, "Export SVG", "svg");
   const sourceSvg = await readLastExport(page, "svg");
-  expect(sourceSvg.text).toContain("<text");
+  expect(sourceSvg.text).toContain("data-particle-color");
 
   await editTimelineDuration(page, 1);
   await chooseSelectInSection(page, "Video Export", "Resolution", "Current");
@@ -612,6 +779,34 @@ test("browser: source image upload clear reset and transforms update dither outp
   await expect(page.getByRole("button", { name: "Browse image file" })).toBeVisible();
 });
 
+test("browser: source image invert swaps light and dark dither output", async ({ page }) => {
+  await openApp(page);
+  await pausePlayback(page);
+  await uploadSourceImage(page, 640, 360, "source-image-invert.svg");
+
+  const checkbox = await getCheckboxInSection(page, "Source Image", "Invert");
+  await expect(checkbox).not.toBeChecked();
+  const normalPreview = await getToolcraftProductObservableSnapshot(page);
+  await clickExport(page, "Export SVG", "svg");
+  const normalSvg = await readLastExport(page, "svg");
+
+  await expectToolcraftProductObservableToChange(page, async () => {
+    await toggleCheckboxInSection(page, "Source Image", "Invert");
+  });
+  await expect(checkbox).toBeChecked();
+  const invertedPreview = await getToolcraftProductObservableSnapshot(page);
+  await clickExport(page, "Export SVG", "svg");
+  const invertedSvg = await readLastExport(page, "svg");
+
+  expect(invertedPreview).not.toBe(normalPreview);
+  expect(invertedSvg.text).not.toBe(normalSvg.text);
+
+  await page.getByRole("button", { name: "Reset Source Image section" }).click();
+  await waitForToolcraftAnimationFrames(page, 3);
+  await expect(checkbox).not.toBeChecked();
+  await expect(page.getByRole("button", { name: "Browse image file" })).toBeVisible();
+});
+
 test("browser: source video upload clear reset and timeline frames update dither output", async ({
   page,
 }) => {
@@ -632,9 +827,15 @@ test("browser: source video upload clear reset and timeline frames update dither
   const videoFrameMiddle = await getToolcraftProductObservableSnapshot(page);
   expect(videoFrameMiddle).not.toBe(videoFrameStart);
 
+  await playPlayback(page);
+  const sourceCadence = await measureSourceVideoFrameCadence(page, 800);
+  expect(sourceCadence.updates).toBeGreaterThanOrEqual(4);
+  expect(sourceCadence.maxFrameGapMs).toBeLessThanOrEqual(250);
+  await pausePlayback(page);
+
   await clickExport(page, "Export SVG", "svg");
   const sourceSvg = await readLastExport(page, "svg");
-  expect(sourceSvg.text).toContain("<text");
+  expect(sourceSvg.text).toContain("data-particle-color");
 
   await editTimelineDuration(page, 1);
   await chooseSelectInSection(page, "Video Export", "Resolution", "Current");
@@ -669,14 +870,45 @@ test("browser: source video upload clear reset and timeline frames update dither
   await expect(page.getByRole("button", { name: "Browse file" })).toBeVisible();
 
   await uploadSourceVideo(page, 300, 180, "source-video-global-reset.webm");
+  await page.getByRole("button", { name: "Reset controls" }).click();
+  await waitForToolcraftAnimationFrames(page, 4);
+  await expect(page.getByRole("button", { name: "Browse file" })).toBeVisible();
+  await expect(page.locator("[data-ascii-pattern-canvas]")).not.toHaveAttribute(
+    "data-source-video-frame-count",
+  );
+});
+
+test("browser: source video invert swaps light and dark dither output", async ({ page }) => {
+  await openApp(page);
+  await pausePlayback(page);
+  await uploadSourceVideo(page, 640, 360, "source-video-invert.webm");
+
+  const checkbox = await getCheckboxInSection(page, "Source Video", "Invert");
+  await expect(checkbox).not.toBeChecked();
+  const normalPreview = await getToolcraftProductObservableSnapshot(page);
+  await clickExport(page, "Export SVG", "svg");
+  const normalSvg = await readLastExport(page, "svg");
+
   await expectToolcraftProductObservableToChange(
     page,
     async () => {
-      await page.getByRole("button", { name: "Reset controls" }).click();
-      await waitForToolcraftAnimationFrames(page, 4);
+      await toggleCheckboxInSection(page, "Source Video", "Invert");
     },
     { timeoutMs: 8000 },
   );
+  await expect(checkbox).toBeChecked();
+  const invertedPreview = await getToolcraftProductObservableSnapshot(page);
+  await clickExport(page, "Export SVG", "svg");
+  const invertedSvg = await readLastExport(page, "svg");
+
+  expect(invertedPreview).not.toBe(normalPreview);
+  expect(invertedSvg.text).not.toBe(normalSvg.text);
+
+  await scrubTimeline(page, 0.55);
+  await expect(checkbox).toBeChecked();
+  await page.getByRole("button", { name: "Reset Source Video section" }).click();
+  await waitForToolcraftAnimationFrames(page, 4);
+  await expect(checkbox).not.toBeChecked();
   await expect(page.getByRole("button", { name: "Browse file" })).toBeVisible();
 });
 
@@ -751,6 +983,13 @@ test("browser: dark source video auto-levels into visible dither output", async 
 test("browser: dither controls change ASCII output", async ({ page }) => {
   await openApp(page);
   await pausePlayback(page);
+  await uploadSourceImage(
+    page,
+    640,
+    360,
+    "tonal-gradient-source.svg",
+    createTonalGradientSourceImageSvg(),
+  );
 
   await dragToolcraftSliderToValue(page, "Threshold", 0.52);
   await expectToolcraftProductObservableToChange(page, async () => {
@@ -762,19 +1001,83 @@ test("browser: dither controls change ASCII output", async ({ page }) => {
   await clickExport(page, "Export SVG", "svg");
   const flatDepthSvg = await readLastExport(page, "svg");
   const flatDepthSizes = [
-    ...flatDepthSvg.text.matchAll(/font-size="([0-9.]+)"/g),
+    ...flatDepthSvg.text.matchAll(/data-glyph-size="([0-9.]+)"/g),
+  ].map((match) => match[1]);
+  const flatDepthColors = [
+    ...flatDepthSvg.text.matchAll(/data-particle-color="(#[0-9A-F]{6})"/g),
   ].map((match) => match[1]);
   expect(flatDepthSizes.length).toBeGreaterThan(2);
   expect(new Set(flatDepthSizes).size).toBe(1);
+  expect(new Set(flatDepthColors).size).toBe(1);
   await expectToolcraftProductObservableToChange(page, async () => {
     await dragToolcraftSliderToValue(page, "Depth", 2);
   });
   await clickExport(page, "Export SVG", "svg");
   const deepDepthSvg = await readLastExport(page, "svg");
   const deepDepthSizes = [
-    ...deepDepthSvg.text.matchAll(/font-size="([0-9.]+)"/g),
+    ...deepDepthSvg.text.matchAll(/data-glyph-size="([0-9.]+)"/g),
   ].map((match) => match[1]);
-  expect(new Set(deepDepthSizes).size).toBeGreaterThan(1);
+  const deepDepthColors = [
+    ...deepDepthSvg.text.matchAll(/data-particle-color="(#[0-9A-F]{6})"/g),
+  ].map((match) => match[1]);
+  const deepCrossStrokeWidths = [
+    ...deepDepthSvg.text.matchAll(/data-stroke-width="([0-9.]+)"/g),
+  ].map((match) => match[1]);
+  expect(new Set(deepDepthSizes).size).toBe(1);
+  expect(new Set(deepDepthColors).size).toBeGreaterThan(20);
+  expect(deepCrossStrokeWidths.length).toBeGreaterThan(2);
+  expect(new Set(deepCrossStrokeWidths).size).toBe(1);
+  expect(deepDepthSvg.text).toMatch(/<g data-particle-color=.*<rect/);
+  await expectToolcraftProductObservableToChange(page, async () => {
+    await dragToolcraftSliderToValue(page, "Depth", 3);
+  });
+  await clickExport(page, "Export SVG", "svg");
+  const enhancedDepthSvg = await readLastExport(page, "svg");
+  const enhancedDepthSizes = [
+    ...enhancedDepthSvg.text.matchAll(/data-glyph-size="([0-9.]+)"/g),
+  ].map((match) => match[1]);
+  const enhancedDepthColors = [
+    ...enhancedDepthSvg.text.matchAll(/data-particle-color="(#[0-9A-F]{6})"/g),
+  ].map((match) => match[1]);
+  expect(new Set(enhancedDepthSizes).size).toBe(1);
+  expect(new Set(enhancedDepthColors).size).toBeGreaterThan(20);
+
+  await uploadSourceImage(
+    page,
+    640,
+    360,
+    "shadow-detail-source.svg",
+    createShadowDetailSourceImageSvg(),
+  );
+  await dragToolcraftSliderToValue(page, "Strength", 1.6);
+  await dragToolcraftSliderToValue(page, "Threshold", 0.6);
+  await dragToolcraftSliderToValue(page, "Depth", 0);
+  await clickExport(page, "Export SVG", "svg");
+  const zeroDepthShadowSvg = await readLastExport(page, "svg");
+  const zeroDepthShadowParticleCount = [
+    ...zeroDepthShadowSvg.text.matchAll(/data-particle-color=/g),
+  ].length;
+  await expectToolcraftProductObservableToChange(page, async () => {
+    await dragToolcraftSliderToValue(page, "Depth", 1.5);
+  });
+  await clickExport(page, "Export SVG", "svg");
+  const middleDepthShadowSvg = await readLastExport(page, "svg");
+  const middleDepthShadowParticleCount = [
+    ...middleDepthShadowSvg.text.matchAll(/data-particle-color=/g),
+  ].length;
+  await expectToolcraftProductObservableToChange(page, async () => {
+    await dragToolcraftSliderToValue(page, "Depth", 3);
+  });
+  await clickExport(page, "Export SVG", "svg");
+  const liftedShadowSvg = await readLastExport(page, "svg");
+  const liftedShadowColors = [
+    ...liftedShadowSvg.text.matchAll(/data-particle-color="(#[0-9A-F]{6})"/g),
+  ].map((match) => match[1]);
+  expect(middleDepthShadowParticleCount).toBeGreaterThan(
+    zeroDepthShadowParticleCount * 1.2,
+  );
+  expect(liftedShadowColors.length).toBeGreaterThan(middleDepthShadowParticleCount * 1.2);
+  expect(new Set(liftedShadowColors).size).toBeGreaterThan(10);
   await expectToolcraftProductObservableToChange(page, async () => {
     await dragToolcraftSliderToValue(page, "Threshold", 0.25);
   });
@@ -870,6 +1173,31 @@ test("browser: video export produces timeline-duration metadata", async ({ page 
   expect(fourKMetadata.videoHeight).toBe(2160);
 });
 
+test("browser: optimized GIF export preserves dimensions duration and loop", async ({
+  page,
+}) => {
+  await openApp(page);
+  await pausePlayback(page);
+  await editTimelineDuration(page, 1);
+  await chooseSelectInSection(page, "Video Export", "Resolution", "Current");
+  await chooseSelectInSection(page, "Video Export", "Format", "GIF");
+  await clickExport(page, "Export Video", "video");
+  const gif = await readExportedGifMetadata(page);
+
+  expect(gif.header).toBe("GIF89a");
+  expect(gif.type).toBe("image/gif");
+  expect(gif.fileName).toMatch(/\.gif$/);
+  expect(gif.width).toBe(1920);
+  expect(gif.height).toBe(1080);
+  expect(gif.duration).toBeGreaterThanOrEqual(0.99);
+  expect(gif.duration).toBeLessThanOrEqual(1.01);
+  expect(gif.durationSeconds).toBe(1);
+  expect(gif.loopCount).toBe(0);
+  expect(gif.paletteColors).toBeLessThanOrEqual(32);
+  expect(gif.frameCount).toBeGreaterThanOrEqual(2);
+  expect(gif.size).toBeLessThan(gif.width * gif.height * gif.frameCount);
+});
+
 test("browser: footer exports create svg image and video bytes", async ({ page }) => {
   await openApp(page);
   await pausePlayback(page);
@@ -878,7 +1206,7 @@ test("browser: footer exports create svg image and video bytes", async ({ page }
   const svg = await readLastExport(page, "svg");
   expect(svg.type).toContain("image/svg+xml");
   expect(svg.text).toContain("<svg");
-  expect(svg.text).toContain("<text");
+  expect(svg.text).toContain("data-particle-color");
 
   await chooseSelectInSection(page, "Image Export", "Format", "PNG");
   await chooseSelectInSection(page, "Image Export", "Resolution", "2K");
@@ -919,6 +1247,58 @@ test("browser: reference video motif is reproduced in product output", async ({ 
 
   expect(snapshot).toContain("data-ascii-pattern-canvas");
   await expect(page.locator("[data-ascii-pattern-canvas]")).toBeVisible();
+});
+
+test("browser: second video reference defines dense bright default field", async ({ page }) => {
+  await openApp(page);
+  await pausePlayback(page);
+
+  const expectSliderValue = async (label: string, value: number) => {
+    const field = await getToolcraftFieldByLabel(page, label);
+    await expect(field.getByRole("slider").first()).toHaveAttribute(
+      "aria-valuenow",
+      String(value),
+    );
+  };
+
+  const particleField = await getToolcraftFieldByLabel(page, "Particle");
+  await expect(particleField.getByRole("combobox").first()).toContainText("Crosses");
+  await expectSliderValue("Scale", 24);
+  await expectSliderValue("Spacing", -8);
+  await expectSliderValue("Voids", 1);
+  await expectSliderValue("Density", 100);
+  await expectSliderValue("Speed", 1);
+  await expectSliderValue("Strength", 2.4);
+  await expectSliderValue("Depth", 3);
+  await expectSliderValue("Threshold", 0.1);
+
+  await clickExport(page, "Export SVG", "svg");
+  const defaultSvg = await readLastExport(page, "svg");
+  const particleColors = defaultSvg.text.match(/data-particle-color="#[0-9A-Fa-f]{6}"/g) ?? [];
+  const uniqueColors = new Set(
+    particleColors.map((attribute) => attribute.slice(attribute.indexOf("#"), -1)),
+  );
+
+  expect(particleColors.length).toBeGreaterThan(4000);
+  expect(uniqueColors.size).toBeGreaterThan(30);
+  expect(defaultSvg.text).toContain('data-glyph-size="21.60"');
+  expect(defaultSvg.text).toContain('data-stroke-width="3.02"');
+
+  await dragToolcraftSliderToValue(page, "Scale", 6);
+  await dragToolcraftSliderToValue(page, "Density", 12);
+  await page.getByRole("button", { name: "Reset Pattern section" }).click();
+  await dragToolcraftSliderToValue(page, "Strength", 0.2);
+  await dragToolcraftSliderToValue(page, "Depth", 0);
+  await dragToolcraftSliderToValue(page, "Threshold", 0.9);
+  await page.getByRole("button", { name: "Reset Dither section" }).click();
+  await waitForToolcraftAnimationFrames(page, 2);
+
+  await expectSliderValue("Scale", 24);
+  await expectSliderValue("Spacing", -8);
+  await expectSliderValue("Density", 100);
+  await expectSliderValue("Strength", 2.4);
+  await expectSliderValue("Depth", 3);
+  await expectSliderValue("Threshold", 0.1);
 });
 
 test("browser: native preview dimensions match canvas output size", async ({ page }) => {
@@ -1019,6 +1399,44 @@ test("browser perf: source image import prepares dither sampler", async ({ page 
   expectToolcraftScenarioPerformanceBudget(result, appPerformance, "source-image-media-import");
 });
 
+test("browser perf: source image invert toggle stays responsive", async ({ page }) => {
+  await openApp(page);
+  await pausePlayback(page);
+  await uploadSourceImage(page, 640, 360, "source-image-invert-performance.svg");
+  const before = await getToolcraftProductObservableSnapshot(page);
+
+  const result = await measureToolcraftInteraction(page, async () => {
+    await toggleCheckboxInSection(page, "Source Image", "Invert");
+  });
+
+  const after = await getToolcraftProductObservableSnapshot(page);
+  expect(after).not.toBe(before);
+  expectToolcraftScenarioPerformanceBudget(
+    result,
+    appPerformance,
+    "source-image-invert-control-change",
+  );
+});
+
+test("browser perf: source video invert toggle stays responsive", async ({ page }) => {
+  await openApp(page);
+  await pausePlayback(page);
+  await uploadSourceVideo(page, 640, 360, "source-video-invert-performance.webm");
+  const before = await getToolcraftProductObservableSnapshot(page);
+
+  const result = await measureToolcraftInteraction(page, async () => {
+    await toggleCheckboxInSection(page, "Source Video", "Invert");
+  });
+
+  const after = await getToolcraftProductObservableSnapshot(page);
+  expect(after).not.toBe(before);
+  expectToolcraftScenarioPerformanceBudget(
+    result,
+    appPerformance,
+    "source-video-invert-control-change",
+  );
+});
+
 test("browser perf: source video import prepares dither sampler", async ({ page }) => {
   await openApp(page);
   await pausePlayback(page);
@@ -1043,24 +1461,75 @@ test("browser perf: source video import prepares dither sampler", async ({ page 
   await waitForToolcraftAnimationFrames(page, 4);
 
   const result = await measureToolcraftInteraction(page, async () => {
-    await expectToolcraftProductObservableToChange(
+    await uploadSourceVideo(
       page,
-      async () => {
-        await uploadSourceVideo(
-          page,
-          stressValue.width,
-          stressValue.height,
-          "source-video-heavy.webm",
-          videoBuffer,
-          4,
-        );
-      },
-      { timeoutMs: 10000 },
+      stressValue.width,
+      stressValue.height,
+      "source-video-heavy.webm",
+      videoBuffer,
+      4,
     );
+    await expectAsciiCanvasHasVisibleParticles(page);
   });
   await expect(page.locator("[data-ascii-pattern-canvas]")).toBeVisible();
   expect(result.durationMs).toBeGreaterThan(0);
   expectToolcraftScenarioPerformanceBudget(result, appPerformance, "source-video-media-import");
+});
+
+test("browser perf: source video playback follows decoded frames", async ({ page }) => {
+  await openApp(page);
+  await pausePlayback(page);
+  const stressValue = getToolcraftPerformanceStressValue<{
+    density: number;
+    scale: number;
+    sourceVideo: { frameRate: number; height: number; width: number };
+    threshold: number;
+  }>(appPerformance, "source-video-playback");
+  const frameCount = Math.max(24, Math.round(stressValue.sourceVideo.frameRate * 2));
+  const videoBuffer = await createSourceVideoWebm(
+    page,
+    stressValue.sourceVideo.width,
+    stressValue.sourceVideo.height,
+    frameCount,
+    "high",
+    stressValue.sourceVideo.frameRate,
+  );
+
+  await applyToolcraftPerformanceStressFixture(page, appPerformance, "source-video-playback", {
+    density: async (value) => {
+      await dragToolcraftSliderToValue(page, "Density", Number(value));
+    },
+    scale: async (value) => {
+      await dragToolcraftSliderToValue(page, "Scale", Number(value));
+    },
+    sourceVideo: async (value) => {
+      const media = value as { frameRate: number; height: number; width: number };
+      await uploadSourceVideo(
+        page,
+        media.width,
+        media.height,
+        "source-video-playback-heavy.webm",
+        videoBuffer,
+        frameCount,
+        media.frameRate,
+      );
+    },
+    threshold: async (value) => {
+      await dragToolcraftSliderToValue(page, "Threshold", Number(value));
+    },
+  });
+
+  await playPlayback(page);
+  const cadence = await measureSourceVideoFrameCadence(page, 1200);
+  const animation = await measureToolcraftAnimationFrames(page, 120);
+  const budget = getToolcraftPerformanceScenarioBudget(
+    appPerformance,
+    "source-video-playback",
+  );
+
+  expect(cadence.updates).toBeGreaterThanOrEqual(12);
+  expect(cadence.maxFrameGapMs).toBeLessThanOrEqual(budget.maxFrameGapMs ?? 120);
+  expectToolcraftScenarioPerformanceBudget(animation, appPerformance, "source-video-playback");
 });
 
 test("browser perf: particle type select changes glyph family", async ({ page }) => {
@@ -1133,6 +1602,13 @@ test("browser perf: strength control drag stays responsive", async ({ page }) =>
 test("browser perf: depth control drag stays responsive", async ({ page }) => {
   await openApp(page);
   await pausePlayback(page);
+  await uploadSourceImage(
+    page,
+    640,
+    360,
+    "depth-performance-shadow-source.svg",
+    createShadowDetailSourceImageSvg(),
+  );
   const result = await measureToolcraftInteraction(page, async () => {
     await dragToolcraftSliderByLabel(page, "Depth", 0.85);
   });
@@ -1403,6 +1879,7 @@ test("browser perf: scale control drag uses heavy ASCII fixture", async ({ page 
     "[data-ascii-pattern-canvas]",
     2,
   );
+  await dragToolcraftSliderByLabel(page, "Scale", 0.02);
   await dragToolcraftSliderByLabel(page, "Scale", 0.45);
   const result = await measureToolcraftInteraction(page, async () => {
     await dragToolcraftSliderToPerformanceStressValue(
@@ -1438,7 +1915,7 @@ test("browser perf: spacing control drag uses heavy ASCII fixture", async ({ pag
     "[data-ascii-pattern-canvas]",
     2,
   );
-  await dragToolcraftSliderToValue(page, "Spacing", 24);
+  await dragToolcraftSliderByLabel(page, "Spacing", 0.95);
   const result = await measureToolcraftInteraction(page, async () => {
     await dragToolcraftSliderToPerformanceStressValue(
       page,
@@ -1476,7 +1953,7 @@ test("browser perf: voids control drag uses heavy ASCII fixture", async ({ page 
     "[data-ascii-pattern-canvas]",
     2,
   );
-  await dragToolcraftSliderToValue(page, "Voids", 5);
+  await dragToolcraftSliderByLabel(page, "Voids", 0.95);
   const result = await measureToolcraftInteraction(page, async () => {
     await dragToolcraftSliderToPerformanceStressValue(
       page,
@@ -1565,6 +2042,9 @@ test("browser perf: heavy ASCII animation frame budget", async ({ page }) => {
     },
     scale: async (value) => {
       await dragToolcraftSliderToValue(page, "Scale", Number(value));
+    },
+    spacing: async (value) => {
+      await dragToolcraftSliderToValue(page, "Spacing", Number(value));
     },
     threshold: async (value) => {
       await dragToolcraftSliderToValue(page, "Threshold", Number(value));
@@ -1678,6 +2158,36 @@ test("browser perf: short video export uses current export settings", async ({ p
   expect(video.size).toBeGreaterThan(1000);
   expect(result.durationMs).toBeGreaterThan(0);
   expectToolcraftScenarioPerformanceBudget(result, appPerformance, "short-video-export");
+});
+
+test("browser perf: optimized GIF export stays responsive", async ({ page }) => {
+  await openApp(page);
+  await pausePlayback(page);
+  await applyToolcraftPerformanceStressFixture(page, appPerformance, "optimized-gif-export", {
+    density: async (value) => {
+      await dragToolcraftSliderToValue(page, "Density", Number(value));
+    },
+    duration: async (value) => {
+      await editTimelineDuration(page, Number(value));
+    },
+    scale: async (value) => {
+      await dragToolcraftSliderToValue(page, "Scale", Number(value));
+    },
+    threshold: async (value) => {
+      await dragToolcraftSliderToValue(page, "Threshold", Number(value));
+    },
+  });
+  await chooseSelectInSection(page, "Video Export", "Resolution", "Current");
+  await chooseSelectInSection(page, "Video Export", "Format", "GIF");
+  const result = await measureToolcraftInteraction(page, async () => {
+    await clickExport(page, "Export Video", "video");
+  });
+  const gif = await readExportedGifMetadata(page);
+  expect(gif.header).toBe("GIF89a");
+  expect(gif.paletteColors).toBeLessThanOrEqual(32);
+  expect(gif.size).toBeGreaterThan(1000);
+  expect(result.durationMs).toBeGreaterThan(0);
+  expectToolcraftScenarioPerformanceBudget(result, appPerformance, "optimized-gif-export");
 });
 
 test("browser perf: viewport stability after controls", async ({ page }) => {

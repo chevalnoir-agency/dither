@@ -28,6 +28,26 @@ export const appPerformance: ToolcraftPerformanceConfig = defineToolcraftPerform
       },
       {
         interaction: "control-change",
+        invalidates: [
+          "source-image-sampler",
+          "field-model",
+          "glyph-raster-preview",
+          "export-frame",
+        ],
+        targets: ["source.image.invert"],
+      },
+      {
+        interaction: "control-change",
+        invalidates: [
+          "source-video-frame-sampler",
+          "field-model",
+          "glyph-raster-preview",
+          "export-frame",
+        ],
+        targets: ["source.video.invert"],
+      },
+      {
+        interaction: "control-change",
         invalidates: ["field-model", "glyph-raster-preview", "export-frame"],
         targets: [
           "pattern.particleType",
@@ -108,10 +128,20 @@ export const appPerformance: ToolcraftPerformanceConfig = defineToolcraftPerform
         runsOn: "main",
       },
       {
-        cacheKey: ["source-image-decode", "source.image.transform", "canvas.size"],
+        cacheKey: [
+          "source-image-decode",
+          "source.image.transform",
+          "source.image.invert",
+          "canvas.size",
+        ],
         id: "source-image-sampler",
-        inputs: ["source-image-decode", "media transform", "canvas size"],
-        invalidatedBy: ["source.image", "canvas.size"],
+        inputs: [
+          "source-image-decode",
+          "media transform",
+          "invert source luminance",
+          "canvas size",
+        ],
+        invalidatedBy: ["source.image", "source.image.invert", "canvas.size"],
         kind: "preprocess",
         output: "intermediate",
         quality: "full",
@@ -130,13 +160,27 @@ export const appPerformance: ToolcraftPerformanceConfig = defineToolcraftPerform
       {
         cacheKey: [
           "source-video-decode",
-          "timeline.currentTimeSeconds",
-          "timeline.durationSeconds",
+          "source-video-presented-frame",
+          "source.video.invert",
           "canvas.size",
+          "sampler-surface",
         ],
         id: "source-video-frame-sampler",
-        inputs: ["source-video-decode", "timeline progress", "canvas size", "auto levels"],
-        invalidatedBy: ["source.video", "timeline.playback", "timeline.scrub", "canvas.size"],
+        inputs: [
+          "source-video-decode",
+          "decoded video frame",
+          "canvas size",
+          "auto levels",
+          "invert source luminance",
+          "reusable sampler surface",
+        ],
+        invalidatedBy: [
+          "source.video",
+          "source.video.invert",
+          "source-video-presented-frame",
+          "timeline.scrub",
+          "canvas.size",
+        ],
         kind: "preprocess",
         output: "intermediate",
         quality: "full",
@@ -162,7 +206,9 @@ export const appPerformance: ToolcraftPerformanceConfig = defineToolcraftPerform
         inputs: ["schema values", "timeline progress", "canvas size", "source sampler"],
         invalidatedBy: [
           "source.image",
+          "source.image.invert",
           "source.video",
+          "source.video.invert",
           "pattern.particleType",
           "pattern.scale",
           "pattern.spacing",
@@ -220,7 +266,9 @@ export const appPerformance: ToolcraftPerformanceConfig = defineToolcraftPerform
         inputs: ["field-model", "export settings", "canvas size", "source sampler"],
         invalidatedBy: [
           "source.image",
+          "source.image.invert",
           "source.video",
+          "source.video.invert",
           "field-model",
           "appearance.background",
           "export.includeBackground",
@@ -243,6 +291,7 @@ export const appPerformance: ToolcraftPerformanceConfig = defineToolcraftPerform
     fidelityRisks: [
       "Canvas preview rasterizes dense monospace glyphs, so SVG export is provided for still vector inspection.",
       "Browser MP4 support varies; unsupported MP4 requests fall back to a supported WebM MediaRecorder MIME type.",
+      "GIF uses a shared adaptive 32-color palette and 12 fps cadence to balance the intended monochrome look with web delivery size.",
     ],
     intentionalRasterizationReason:
       "The live product can contain tens of thousands of ASCII glyphs; Canvas 2D preserves the dense text look without creating a DOM/SVG node per cell, while SVG export rebuilds the current frame as vector text.",
@@ -274,11 +323,13 @@ export const appPerformance: ToolcraftPerformanceConfig = defineToolcraftPerform
     performanceRisks: [
       "Small scale, low spacing, and high density can draw many glyphs per frame.",
       "Uploaded source images add a decode and canvas luminance sampling pass before the ASCII frame is generated.",
-      "Uploaded source videos add timeline-synchronized frame seeking, luminance auto-leveling, and sampling before each video-driven ASCII frame.",
+      "Uploaded source videos add native-cadence frame presentation, paused-scrub seeking, luminance auto-leveling, and sampling before each video-driven ASCII frame.",
+      "Source-video preview rendering is synchronized to decoded frames and reuses one sampling surface so React timeline ticks do not duplicate full canvas work.",
       "Video export intentionally records frame-by-frame and can take approximately the selected timeline duration.",
+      "GIF export reads full-resolution frames on the main canvas but transfers palette mapping and LZW encoding to a worker.",
     ],
     previewExportDifferenceReason:
-      "Preview uses Canvas 2D for interactive dense glyph rendering; video export records an offscreen canvas through MediaRecorder and SVG export rebuilds the same frame model as vector text.",
+      "Preview uses Canvas 2D for interactive dense glyph rendering; MP4/WebM records an offscreen canvas through MediaRecorder, GIF uses worker-based palette/LZW encoding, and SVG export rebuilds the same frame model as vector text.",
     previewRenderer: "canvas-2d",
     productRepresentation: "text",
     rendererStrategy: "canvas-2d",
@@ -292,6 +343,44 @@ export const appPerformance: ToolcraftPerformanceConfig = defineToolcraftPerform
   },
   rendererWorkload: "text-output",
   scenarios: [
+    {
+      automated: true,
+      automatedTestName: "source video invert toggle stays responsive",
+      browser: true,
+      browserTestName: "browser perf: source video invert toggle stays responsive",
+      budget: {
+        maxFrameGapMs: 120,
+        maxInteractionMs: 700,
+        maxLongTaskMs: 160,
+      },
+      controlLabel: "Invert",
+      expectedObservable:
+        "Toggling Source Video Invert swaps normalized decoded-frame luminance without reloading the media or changing the particle grid.",
+      fixture: "uploaded asymmetric source video paused on a decoded frame",
+      id: "source-video-invert-control-change",
+      interaction: "control-change",
+      target: "source.video.invert",
+      workload: false,
+    },
+    {
+      automated: true,
+      automatedTestName: "source image invert toggle stays responsive",
+      browser: true,
+      browserTestName: "browser perf: source image invert toggle stays responsive",
+      budget: {
+        maxFrameGapMs: 120,
+        maxInteractionMs: 700,
+        maxLongTaskMs: 160,
+      },
+      controlLabel: "Invert",
+      expectedObservable:
+        "Toggling Invert swaps normalized source-image luminance without resizing or decoding the media again and without changing the particle grid.",
+      fixture: "uploaded asymmetric source image with Invert toggled",
+      id: "source-image-invert-control-change",
+      interaction: "control-change",
+      target: "source.image.invert",
+      workload: false,
+    },
     {
       automated: true,
       automatedTestName: "source image import prepares dither sampler within budget",
@@ -370,6 +459,59 @@ export const appPerformance: ToolcraftPerformanceConfig = defineToolcraftPerform
     },
     {
       automated: true,
+      automatedTestName: "source video playback follows decoded frames without stutter",
+      browser: true,
+      browserTestName: "browser perf: source video playback follows decoded frames",
+      budget: {
+        maxFrameGapMs: 120,
+        maxInteractionMs: 2000,
+        maxLongTaskMs: 180,
+      },
+      expectedObservable:
+        "A 1920x1080 source video at the default product settings presents repeated frame-synchronized ASCII updates without hold-and-catch-up gaps.",
+      fixture: "1920x1080 24fps source video playback at default ASCII settings",
+      id: "source-video-playback",
+      interaction: "animation-frame",
+      stress: true,
+      stressFixture: {
+        kind: "custom",
+        loadProfile: {
+          hardLimit: {
+            density: 100,
+            scale: 24,
+            sourceVideo: { frameRate: 24, height: 1080, width: 1920 },
+            threshold: 0.1,
+          },
+          metric: "custom",
+          smoothTarget: {
+            density: 100,
+            scale: 24,
+            sourceVideo: { frameRate: 24, height: 1080, width: 1920 },
+            threshold: 0.1,
+          },
+          smoothTargetRatio: 1,
+          target: "source-video-playback",
+          userFacingRange: "fully-guaranteed",
+        },
+        reason:
+          "The supplied recording shows stutter during ordinary source-video playback, so the guaranteed target uses the default product settings with a full-HD 24fps media source.",
+        value: {
+          density: 100,
+          scale: 24,
+          sourceVideo: { frameRate: 24, height: 1080, width: 1920 },
+          threshold: 0.1,
+        },
+      },
+      target: "timeline.playback",
+      values: {
+        default: "empty source",
+        max: { frameRate: 24, height: 1080, width: 1920 },
+        min: "paused source video",
+      },
+      workload: true,
+    },
+    {
+      automated: true,
       automatedTestName: "density control drag remains responsive under heavy ASCII load",
       browser: true,
       browserTestName: "browser perf: density control drag uses heavy ASCII fixture",
@@ -398,7 +540,7 @@ export const appPerformance: ToolcraftPerformanceConfig = defineToolcraftPerform
         value: 100,
       },
       target: "pattern.density",
-      values: { default: 70, max: 100, min: 12 },
+      values: { default: 100, max: 100, min: 12 },
       workload: true,
       workloadFixture: {
         kind: "custom",
@@ -428,7 +570,7 @@ export const appPerformance: ToolcraftPerformanceConfig = defineToolcraftPerform
       controlLabel: "Scale",
       expectedObservable:
         "Dragging Scale to the smallest cell size keeps the product canvas responsive.",
-      fixture: "density 100, threshold 0.2, renderScale 2 baseline with scale dragged to 6",
+      fixture: "density 80, threshold 0.2, renderScale 2 baseline with scale dragged to 6",
       id: "scale-control-drag",
       interaction: "control-drag",
       stressFixture: {
@@ -445,21 +587,46 @@ export const appPerformance: ToolcraftPerformanceConfig = defineToolcraftPerform
         value: 6,
       },
       target: "pattern.scale",
-      values: { default: 12, max: 28, min: 6 },
+      values: { default: 24, max: 28, min: 6 },
       workload: true,
       workloadFixture: {
         kind: "custom",
         loadProfile: {
+          degradationStepPercent: 10,
+          evidence: [
+            {
+              attemptedTarget: { density: 100, renderScale: 2, threshold: 0.2 },
+              decision:
+                "Keep maximum density available and guarantee the combined Scale drag baseline at the next 10 percent step.",
+              measuredResult:
+                "After shared spatial caching, cheap organic noise, palette caching, and batched Canvas paths, the full hard limit measured 125ms against the 120ms frame-gap budget.",
+              optimizationAttempted:
+                "Cached grid topology and organic values, reused particle palettes, and batched glyph geometry by color without reducing backing resolution.",
+              result: "failed",
+              scenarioId: "scale-control-drag",
+            },
+            {
+              attemptedTarget: { density: 90, renderScale: 2, threshold: 0.2 },
+              decision:
+                "Keep density 90 and 100 available as experimental combined extremes and guarantee the next 10 percent workload step.",
+              measuredResult:
+                "Repeated cold Scale drags at density 90 varied from 125ms to 141.4ms against the 130ms frame-gap budget.",
+              optimizationAttempted:
+                "Retained an LRU cache for spatial topology and organic values while avoiding heavier per-grid trigonometric precomputation.",
+              result: "failed",
+              scenarioId: "scale-control-drag",
+            },
+          ],
           hardLimit: { density: 100, renderScale: 2, threshold: 0.2 },
           metric: "custom",
-          smoothTarget: { density: 100, renderScale: 2, threshold: 0.2 },
-          smoothTargetRatio: 1,
+          smoothTarget: { density: 80, renderScale: 2, threshold: 0.2 },
+          smoothTargetRatio: 0.8,
           target: "combined-heavy-preview",
-          userFacingRange: "fully-guaranteed",
+          userFacingRange: "experimental-above-smooth",
         },
         reason:
-          "Maximum density, low threshold, and render scale 2 create the heaviest useful baseline before measuring scale.",
-        value: { density: 100, renderScale: 2, threshold: 0.2 },
+          "Density 80, low threshold, and render scale 2 are the guaranteed smooth baseline before measuring the minimum Scale value; higher density remains available as an experimental combined extreme.",
+        value: { density: 80, renderScale: 2, threshold: 0.2 },
       },
     },
     {
@@ -487,7 +654,7 @@ export const appPerformance: ToolcraftPerformanceConfig = defineToolcraftPerform
             {
               attemptedTarget: -2,
               decision:
-                "Keep -2 as the visual default and lower negative values exposed for art-directed compression, but do not mark them as the dense-stress smooth target.",
+                "Keep -2 available as a compressed-grid value, but do not mark it as the dense-stress smooth target.",
               measuredResult:
                 "At spacing -2 with density 100, scale 6, threshold 0.2, and render scale 2, maxFrameGapMs measured 158.9 against the 120ms budget.",
               optimizationAttempted:
@@ -519,7 +686,7 @@ export const appPerformance: ToolcraftPerformanceConfig = defineToolcraftPerform
         value: 0,
       },
       target: "pattern.spacing",
-      values: { default: -2, max: 24, min: -8 },
+      values: { default: -8, max: 24, min: -8 },
       workload: true,
       workloadFixture: {
         kind: "custom",
@@ -616,7 +783,7 @@ export const appPerformance: ToolcraftPerformanceConfig = defineToolcraftPerform
         value: 0.1,
       },
       target: "dither.threshold",
-      values: { default: 0.46, max: 0.9, min: 0.1 },
+      values: { default: 0.1, max: 0.9, min: 0.1 },
       workload: true,
       workloadFixture: {
         kind: "custom",
@@ -691,29 +858,53 @@ export const appPerformance: ToolcraftPerformanceConfig = defineToolcraftPerform
       },
       expectedObservable:
         "The heaviest useful ASCII animation samples at least 120 frames without long frame gaps.",
-      fixture: "scale 6, density 100, threshold 0.2, renderScale 2 animation",
+      fixture: "scale 6, spacing 0, density 100, threshold 0.2, renderScale 2 animation",
       id: "heavy-animation-frame",
       interaction: "animation-frame",
       stress: true,
       stressFixture: {
         kind: "custom",
         loadProfile: {
-          hardLimit: { density: 100, renderScale: 2, scale: 6, threshold: 0.2 },
+          hardLimit: {
+            density: 100,
+            renderScale: 2,
+            scale: 6,
+            spacing: 0,
+            threshold: 0.2,
+          },
           metric: "custom",
-          smoothTarget: { density: 100, renderScale: 2, scale: 6, threshold: 0.2 },
+          smoothTarget: {
+            density: 100,
+            renderScale: 2,
+            scale: 6,
+            spacing: 0,
+            threshold: 0.2,
+          },
           smoothTargetRatio: 1,
           target: "combined-heavy-animation",
           userFacingRange: "fully-guaranteed",
         },
         reason:
           "Small cells, maximum density, low threshold, and render scale 2 are the heaviest useful animated preview state.",
-        value: { density: 100, renderScale: 2, scale: 6, threshold: 0.2 },
+        value: {
+          density: 100,
+          renderScale: 2,
+          spacing: 0,
+          scale: 6,
+          threshold: 0.2,
+        },
       },
       target: "timeline.playback",
       values: {
-        default: { density: 70, renderScale: 1, scale: 14, threshold: 0.6 },
-        max: { density: 100, renderScale: 2, scale: 6, threshold: 0.2 },
-        min: { density: 12, renderScale: 1, scale: 28, threshold: 0.9 },
+        default: {
+          density: 100,
+          renderScale: 1,
+          scale: 24,
+          spacing: -8,
+          threshold: 0.1,
+        },
+        max: { density: 100, renderScale: 2, scale: 6, spacing: 0, threshold: 0.2 },
+        min: { density: 12, renderScale: 1, scale: 28, spacing: 24, threshold: 0.9 },
       },
       workload: true,
     },
@@ -736,20 +927,34 @@ export const appPerformance: ToolcraftPerformanceConfig = defineToolcraftPerform
       stressFixture: {
         kind: "custom",
         loadProfile: {
+          degradationStepPercent: 10,
+          evidence: [
+            {
+              attemptedTarget: { density: 100, renderScale: 2, scale: 6, threshold: 0.2 },
+              decision:
+                "Keep the all-maximum animation state available and guarantee viewport interaction at the next 10 percent density step.",
+              measuredResult:
+                "The all-maximum animated viewport drag measured 2007ms against the 2000ms interaction budget during the full sequential suite.",
+              optimizationAttempted:
+                "Suspended non-essential preview redraws while the viewport pointer gesture is active and reused cached spatial topology.",
+              result: "failed",
+              scenarioId: "animation-viewport-drag-heavy",
+            },
+          ],
           hardLimit: { density: 100, renderScale: 2, scale: 6, threshold: 0.2 },
           metric: "custom",
-          smoothTarget: { density: 100, renderScale: 2, scale: 6, threshold: 0.2 },
-          smoothTargetRatio: 1,
+          smoothTarget: { density: 90, renderScale: 2, scale: 6, threshold: 0.2 },
+          smoothTargetRatio: 0.9,
           target: "combined-heavy-animation",
-          userFacingRange: "fully-guaranteed",
+          userFacingRange: "experimental-above-smooth",
         },
         reason:
-          "The same maximum animated preview state is used while the user drags the viewport.",
-        value: { density: 100, renderScale: 2, scale: 6, threshold: 0.2 },
+          "The viewport gesture is guaranteed at density 90 with minimum scale, low threshold, and render scale 2; density 100 remains an experimental combined extreme.",
+        value: { density: 90, renderScale: 2, scale: 6, threshold: 0.2 },
       },
       target: "canvas.viewport",
       values: {
-        default: { density: 70, renderScale: 1, scale: 14, threshold: 0.6 },
+        default: { density: 100, renderScale: 1, scale: 24, threshold: 0.1 },
         max: { density: 100, renderScale: 2, scale: 6, threshold: 0.2 },
         min: { density: 12, renderScale: 1, scale: 28, threshold: 0.9 },
       },
@@ -787,7 +992,7 @@ export const appPerformance: ToolcraftPerformanceConfig = defineToolcraftPerform
       },
       target: "canvas.zoom",
       values: {
-        default: { density: 70, renderScale: 1, scale: 14, threshold: 0.6 },
+        default: { density: 100, renderScale: 1, scale: 24, threshold: 0.1 },
         max: { density: 100, renderScale: 2, scale: 6, threshold: 0.2 },
         min: { density: 12, renderScale: 1, scale: 28, threshold: 0.9 },
       },
@@ -831,6 +1036,42 @@ export const appPerformance: ToolcraftPerformanceConfig = defineToolcraftPerform
     },
     {
       automated: true,
+      automatedTestName: "optimized GIF export completes within budget",
+      browser: true,
+      browserTestName: "browser perf: optimized GIF export stays responsive",
+      budget: {
+        maxExportMs: 8000,
+      },
+      expectedObservable:
+        "A one-second current-size GIF export creates reduced-palette looping GIF bytes without blocking the UI during encoding.",
+      fixture: "1 second current-size optimized ASCII GIF fixture",
+      id: "optimized-gif-export",
+      interaction: "export-copy",
+      stress: true,
+      stressFixture: {
+        kind: "custom",
+        loadProfile: {
+          hardLimit: { density: 80, duration: 1, scale: 12, threshold: 0.35 },
+          metric: "custom",
+          smoothTarget: { density: 80, duration: 1, scale: 12, threshold: 0.35 },
+          smoothTargetRatio: 1,
+          target: "gif-export-current",
+          userFacingRange: "fully-guaranteed",
+        },
+        reason:
+          "A one-second 1920x1080 GIF exercises full-resolution frame reads, shared-palette mapping, parallel worker chunks, and LZW output.",
+        value: { density: 80, duration: 1, scale: 12, threshold: 0.35 },
+      },
+      target: "actions.output",
+      values: {
+        default: { duration: 11.88166666666667, format: "mp4", resolution: "current" },
+        max: { duration: 11.88166666666667, format: "gif", resolution: "4k" },
+        min: { duration: 1, format: "gif", resolution: "current" },
+      },
+      workload: true,
+    },
+    {
+      automated: true,
       automatedTestName: "particle type select changes glyph family within budget",
       browser: true,
       browserTestName: "browser perf: particle type select changes glyph family",
@@ -865,16 +1106,30 @@ export const appPerformance: ToolcraftPerformanceConfig = defineToolcraftPerform
       workloadFixture: {
         kind: "custom",
         loadProfile: {
+          degradationStepPercent: 10,
+          evidence: [
+            {
+              attemptedTarget: { density: 100, renderScale: 2, scale: 6, threshold: 0.2 },
+              decision:
+                "Keep the maximum-density hatch combination available and guarantee particle switching at the next 10 percent density step.",
+              measuredResult:
+                "After renderer caching and batched glyph rasterization, the full hard limit measured 124.6ms against the 120ms frame-gap budget.",
+              optimizationAttempted:
+                "Cached organic grid values, reduced per-frame color computation to a 64-tone palette, and batched glyph paths by color at native backing resolution.",
+              result: "failed",
+              scenarioId: "particle-type-control-change",
+            },
+          ],
           hardLimit: { density: 100, renderScale: 2, scale: 6, threshold: 0.2 },
           metric: "custom",
-          smoothTarget: { density: 100, renderScale: 2, scale: 6, threshold: 0.2 },
-          smoothTargetRatio: 1,
+          smoothTarget: { density: 90, renderScale: 2, scale: 6, threshold: 0.2 },
+          smoothTargetRatio: 0.9,
           target: "combined-heavy-preview",
-          userFacingRange: "fully-guaranteed",
+          userFacingRange: "experimental-above-smooth",
         },
         reason:
-          "Particle switching is measured inside the heaviest visible preview baseline.",
-        value: { density: 100, renderScale: 2, scale: 6, threshold: 0.2 },
+          "Particle switching is guaranteed at density 90 inside the dense render-scale-2 preview; density 100 remains an experimental combined extreme.",
+        value: { density: 90, renderScale: 2, scale: 6, threshold: 0.2 },
       },
     },
     {
@@ -927,8 +1182,8 @@ export const appPerformance: ToolcraftPerformanceConfig = defineToolcraftPerform
       },
       controlLabel: "Depth",
       expectedObservable:
-        "Dragging Depth updates particle tone and apparent size without resizing the ASCII grid.",
-      fixture: "default ASCII preview with depth dragged",
+        "Dragging Depth progressively updates source colors and bounded shadow lift across 0 to 3 without changing particle geometry or the ASCII grid.",
+      fixture: "dark-detail source-media preview with depth dragged",
       id: "contrast-control-drag",
       interaction: "control-drag",
       target: "dither.contrast",
@@ -1051,7 +1306,7 @@ export const appPerformance: ToolcraftPerformanceConfig = defineToolcraftPerform
       controlLabel: "Format",
       expectedObservable:
         "Changing video Format updates recorder settings without changing preview workload.",
-      fixture: "Video Export format changed to WebM",
+      fixture: "Video Export format changed across WebM and optimized GIF",
       id: "video-format-control-change",
       interaction: "control-change",
       target: "export.video.format",

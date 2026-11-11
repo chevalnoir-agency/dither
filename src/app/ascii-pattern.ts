@@ -10,7 +10,9 @@ import {
 export type AsciiParticleType = "cross" | "dot" | "hatch" | "mixed";
 
 export const ASCII_SOURCE_IMAGE_TARGET = "source.image";
+export const ASCII_SOURCE_IMAGE_INVERT_TARGET = "source.image.invert";
 export const ASCII_SOURCE_VIDEO_TARGET = "source.video";
+export const ASCII_SOURCE_VIDEO_INVERT_TARGET = "source.video.invert";
 
 export type AsciiPatternSettings = {
   background: string;
@@ -25,7 +27,7 @@ export type AsciiPatternSettings = {
   scale: number;
   spacing: number;
   speed: number;
-  videoFormat: "mp4" | "webm";
+  videoFormat: "gif" | "mp4" | "webm";
   videoResolution: string;
   voids: number;
 };
@@ -34,6 +36,7 @@ export type AsciiGlyph = {
   char: string;
   color: string;
   size: number;
+  thickness: number;
   x: number;
   y: number;
 };
@@ -64,11 +67,17 @@ export type AsciiLoadedSourceVideo = {
 export type AsciiSourceSampler = {
   data: Uint8ClampedArray;
   height: number;
+  invertLuminance?: boolean;
   luminanceHigh: number;
   luminanceLow: number;
   targetHeight: number;
   targetWidth: number;
   width: number;
+};
+
+export type AsciiSourceSamplerSurface = {
+  canvas: HTMLCanvasElement;
+  context: CanvasRenderingContext2D;
 };
 
 export const ASCII_PARTICLE_LOW_COLOR = "#222629";
@@ -132,8 +141,8 @@ function readImageFormat(value: unknown): "jpg" | "png" {
   return value === "jpg" ? "jpg" : "png";
 }
 
-function readVideoFormat(value: unknown): "mp4" | "webm" {
-  return value === "webm" ? "webm" : "mp4";
+function readVideoFormat(value: unknown): "gif" | "mp4" | "webm" {
+  return value === "gif" || value === "webm" ? value : "mp4";
 }
 
 function normalizeMediaRotation(rotationDeg: number | undefined): 0 | 90 | 180 | 270 {
@@ -158,6 +167,10 @@ export function getAsciiSourceImageAsset(
   return undefined;
 }
 
+export function getAsciiSourceImageInvert(state: ToolcraftState): boolean {
+  return state.values[ASCII_SOURCE_IMAGE_INVERT_TARGET] === true;
+}
+
 function isVideoMediaAsset(asset: ToolcraftMediaAsset): boolean {
   return (
     asset.sourceTarget === ASCII_SOURCE_VIDEO_TARGET &&
@@ -176,6 +189,10 @@ export function getAsciiSourceVideoAsset(
   }
 
   return undefined;
+}
+
+export function getAsciiSourceVideoInvert(state: ToolcraftState): boolean {
+  return state.values[ASCII_SOURCE_VIDEO_INVERT_TARGET] === true;
 }
 
 export async function loadAsciiSourceImage(
@@ -263,23 +280,19 @@ export async function loadAsciiSourceVideo(
 }
 
 export function getAsciiSourceVideoTime({
-  durationSeconds,
   sourceDurationSeconds,
   state,
   timeSeconds = state.timeline.currentTimeSeconds,
 }: {
-  durationSeconds?: number;
   sourceDurationSeconds: number;
   state: ToolcraftState;
   timeSeconds?: number;
 }): number {
-  const progress = getToolcraftTimelineLoopProgress({
-    currentTimeSeconds: timeSeconds,
-    durationSeconds: durationSeconds ?? state.timeline.durationSeconds,
-  });
   const safeDuration = Math.max(0.001, sourceDurationSeconds);
+  const safeTime = Number.isFinite(timeSeconds) ? Math.max(0, timeSeconds) : 0;
+  const sourceTime = ((safeTime % safeDuration) + safeDuration) % safeDuration;
 
-  return Math.min(Math.max(0, progress * safeDuration), Math.max(0, safeDuration - 0.033));
+  return Math.min(sourceTime, Math.max(0, safeDuration - 0.033));
 }
 
 export async function seekAsciiSourceVideo(
@@ -341,6 +354,8 @@ export async function seekAsciiSourceVideo(
 
 export function createAsciiSourceSampler({
   image,
+  invertLuminance = false,
+  reuseSurface,
   sampleHeight,
   sampleWidth,
   sourceHeight,
@@ -350,6 +365,8 @@ export function createAsciiSourceSampler({
   transform,
 }: {
   image: CanvasImageSource;
+  invertLuminance?: boolean;
+  reuseSurface?: AsciiSourceSamplerSurface;
   sampleHeight?: number;
   sampleWidth?: number;
   sourceHeight: number;
@@ -360,13 +377,20 @@ export function createAsciiSourceSampler({
 }): AsciiSourceSampler | undefined {
   const width = Math.max(1, Math.round(sampleWidth ?? targetWidth));
   const height = Math.max(1, Math.round(sampleHeight ?? targetHeight));
-  const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
-  const context = canvas.getContext("2d", { willReadFrequently: true });
+  const canvas = reuseSurface?.canvas ?? document.createElement("canvas");
+  const context =
+    reuseSurface?.context ?? canvas.getContext("2d", { willReadFrequently: true });
 
   if (!context) {
     return undefined;
+  }
+
+  if (canvas.width !== width) {
+    canvas.width = width;
+  }
+
+  if (canvas.height !== height) {
+    canvas.height = height;
   }
 
   const rotationDeg = normalizeMediaRotation(transform?.rotationDeg);
@@ -405,12 +429,20 @@ export function createAsciiSourceSampler({
   return {
     data,
     height,
+    invertLuminance,
     luminanceHigh: levels.high,
     luminanceLow: levels.low,
     targetHeight,
     targetWidth,
     width,
   };
+}
+
+export function createAsciiSourceSamplerSurface(): AsciiSourceSamplerSurface | undefined {
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+
+  return context ? { canvas, context } : undefined;
 }
 
 function getRawAsciiSourceLuminance(data: Uint8ClampedArray, index: number): number {
@@ -493,7 +525,13 @@ function sampleAsciiSourceLuminance(
   const rawLuminance = getRawAsciiSourceLuminance(sampler.data, index);
   const range = Math.max(0.02, sampler.luminanceHigh - sampler.luminanceLow);
 
-  return clamp((rawLuminance - sampler.luminanceLow) / range, 0, 1);
+  const normalizedLuminance = clamp(
+    (rawLuminance - sampler.luminanceLow) / range,
+    0,
+    1,
+  );
+
+  return sampler.invertLuminance ? 1 - normalizedLuminance : normalizedLuminance;
 }
 
 function hashNoise(x: number, y: number, seed: number): number {
@@ -508,37 +546,6 @@ function smoothstep(edge0: number, edge1: number, value: number): number {
 
 function lerp(start: number, end: number, amount: number): number {
   return start + (end - start) * amount;
-}
-
-function valueNoise(x: number, y: number, seed: number): number {
-  const ix = Math.floor(x);
-  const iy = Math.floor(y);
-  const tx = smoothstep(0, 1, x - ix);
-  const ty = smoothstep(0, 1, y - iy);
-  const top = lerp(hashNoise(ix, iy, seed), hashNoise(ix + 1, iy, seed), tx);
-  const bottom = lerp(
-    hashNoise(ix, iy + 1, seed),
-    hashNoise(ix + 1, iy + 1, seed),
-    tx,
-  );
-
-  return lerp(top, bottom, ty);
-}
-
-function fractalNoise(x: number, y: number, seed: number, octaves = 3): number {
-  let amplitude = 0.58;
-  let frequency = 1;
-  let total = 0;
-  let weight = 0;
-
-  for (let octave = 0; octave < octaves; octave += 1) {
-    total += valueNoise(x * frequency, y * frequency, seed + octave * 17) * amplitude;
-    weight += amplitude;
-    frequency *= 2;
-    amplitude *= 0.5;
-  }
-
-  return total / Math.max(0.0001, weight);
 }
 
 function hexToRgb(color: string): [number, number, number] {
@@ -557,9 +564,12 @@ function rgbToHex(red: number, green: number, blue: number): string {
 }
 
 export function getAsciiParticleColor(tone: number, depth = 2): string {
+  const normalizedTone = clamp(tone, 0, 1);
   const depthAmount = clamp(depth, 0, 2) / 2;
-  const deepTone = clamp(0.5 + (clamp(tone, 0, 1) - 0.5) * 2, 0, 1);
-  const amount = lerp(0.5, deepTone, depthAmount);
+  const extraDepthAmount = clamp(depth - 2, 0, 1);
+  const mediaTone = lerp(0.5, normalizedTone, depthAmount);
+  const enhancedTone = smoothstep(0, 1, normalizedTone);
+  const amount = lerp(mediaTone, enhancedTone, extraDepthAmount);
   const low = hexToRgb(ASCII_PARTICLE_LOW_COLOR);
   const high = hexToRgb(ASCII_PARTICLE_HIGH_COLOR);
 
@@ -570,11 +580,35 @@ export function getAsciiParticleColor(tone: number, depth = 2): string {
   );
 }
 
-export function getAsciiParticleDepthScale(tone: number, depth = 2): number {
-  const depthAmount = clamp(depth, 0, 2) / 2;
-  const signedTone = clamp(tone, 0, 1) * 2 - 1;
+const particleColorPaletteCache = new Map<number, readonly string[]>();
 
-  return 1 + signedTone * 0.28 * depthAmount;
+function getCachedAsciiParticleColor(tone: number, depth: number): string {
+  const cacheKey = Math.round(clamp(depth, 0, 3) * 100);
+  let palette = particleColorPaletteCache.get(cacheKey);
+
+  if (!palette) {
+    palette = Array.from({ length: 64 }, (_value, index) =>
+      getAsciiParticleColor(index / 63, cacheKey / 100),
+    );
+    particleColorPaletteCache.set(cacheKey, palette);
+  }
+
+  return palette[Math.round(clamp(tone, 0, 1) * 63)] ?? ASCII_PARTICLE_LOW_COLOR;
+}
+
+function getAsciiVisibleParticleTone(
+  tone: number,
+  threshold: number,
+  strength: number,
+): number {
+  const visibleFloor = clamp(threshold - 0.34 / Math.max(0.05, strength), 0, 0.98);
+  return clamp((tone - visibleFloor) / Math.max(0.02, 1 - visibleFloor), 0, 1);
+}
+
+function getAsciiMediaDepthTone(tone: number, depth: number): number {
+  const shadowLiftAmount = clamp(depth, 0, 3) / 3;
+  const shadowGamma = lerp(1, 0.24, shadowLiftAmount);
+  return Math.pow(clamp(tone, 0, 1), shadowGamma);
 }
 
 function getGlyphForCell(
@@ -609,7 +643,7 @@ export function getAsciiPatternSettings(state: ToolcraftState): AsciiPatternSett
     ditherContrast: clamp(
       readNumber(state.values["dither.contrast"], fallbackSettings.ditherContrast),
       0,
-      2,
+      3,
     ),
     ditherStrength: clamp(
       readNumber(state.values["dither.strength"], fallbackSettings.ditherStrength),
@@ -671,6 +705,287 @@ export function getAsciiPatternProgress(
   });
 }
 
+type AsciiMediaGridCell = {
+  column: number;
+  edgeNoise: number;
+  flickerOffset: number;
+  gridX: number;
+  gridY: number;
+  mask: number;
+  organicDetail: number;
+  row: number;
+  voidField: number;
+  x: number;
+  y: number;
+};
+
+const mediaGridCache = new Map<string, AsciiMediaGridCell[]>();
+const mediaGridCacheLimit = 12;
+
+function getAsciiMediaGrid({
+  height,
+  settings,
+  width,
+}: {
+  height: number;
+  settings: AsciiPatternSettings;
+  width: number;
+}): AsciiMediaGridCell[] {
+  const gridStep = Math.max(3, settings.scale + settings.spacing);
+  const key = [width, height, settings.scale, settings.spacing, settings.voids].join(":");
+
+  const cachedCells = mediaGridCache.get(key);
+  if (cachedCells) {
+    mediaGridCache.delete(key);
+    mediaGridCache.set(key, cachedCells);
+    return cachedCells;
+  }
+
+  const columns = Math.ceil(width / gridStep) + 2;
+  const rows = Math.ceil(height / gridStep) + 2;
+  const cells: AsciiMediaGridCell[] = [];
+  const voidThresholdShift = (settings.voids - 1) * 0.12;
+
+  for (let row = -1; row < rows; row += 1) {
+    for (let column = -1; column < columns; column += 1) {
+      const x = column * gridStep + gridStep * 0.5;
+      const y = row * gridStep + gridStep * 0.5;
+      const gridX = x / gridStep;
+      const gridY = y / gridStep;
+      const warpX = Math.sin(gridY * 0.071 + Math.sin(gridX * 0.039) * 1.7) * 4.25;
+      const warpY = Math.sin(gridX * 0.067 - Math.sin(gridY * 0.043) * 1.5) * 4.25;
+      const organicX = (gridX + warpX) * 0.082;
+      const organicY = (gridY + warpY) * 0.082;
+      const organicVoid = clamp(
+        0.5 +
+          Math.sin(organicX * 1.13 + Math.sin(organicY * 0.79) * 1.45) * 0.23 +
+          Math.sin(organicY * 1.57 - organicX * 0.61) * 0.17 +
+          Math.sin((organicX + organicY) * 2.21) * 0.1,
+        0,
+        1,
+      );
+      const organicDetail = clamp(
+        0.5 +
+          Math.sin(organicX * 4.83 + organicY * 2.37 + 9.2) * 0.26 +
+          Math.sin(organicY * 6.19 - organicX * 3.11 - 4.7) * 0.24,
+        0,
+        1,
+      );
+      const edgeNoise = clamp(
+        0.5 + Math.sin(gridX * 0.91 + gridY * 1.37 + Math.sin(gridY * 0.17)) * 0.5,
+        0,
+        1,
+      );
+      const rawVoidField =
+        organicVoid + (organicDetail - 0.5) * 0.28 + (edgeNoise - 0.5) * 0.2;
+      const voidField = clamp(
+        smoothstep(0.54 - voidThresholdShift, 0.82 - voidThresholdShift, rawVoidField) *
+          settings.voids,
+        0,
+        1,
+      );
+      cells.push({
+        column,
+        edgeNoise,
+        flickerOffset: hashNoise(column, row, 11) * Math.PI * 2,
+        gridX,
+        gridY,
+        mask: hashNoise(column, row, 41),
+        organicDetail,
+        row,
+        voidField,
+        x,
+        y,
+      });
+    }
+  }
+
+  if (mediaGridCache.size >= mediaGridCacheLimit) {
+    const oldestKey = mediaGridCache.keys().next().value;
+    if (oldestKey !== undefined) mediaGridCache.delete(oldestKey);
+  }
+  mediaGridCache.set(key, cells);
+  return cells;
+}
+
+function createAsciiMediaPatternFrame({
+  height,
+  includeBackground,
+  progress,
+  settings,
+  sourceSampler,
+  width,
+}: {
+  height: number;
+  includeBackground: boolean;
+  progress: number;
+  settings: AsciiPatternSettings;
+  sourceSampler: AsciiSourceSampler;
+  width: number;
+}): AsciiPatternFrame {
+  const glyphCell = Math.max(3, settings.scale);
+  const phase = progress * Math.PI * 2;
+  const density = settings.density / 100;
+  const threshold = settings.ditherThreshold;
+  const cutoffStrength = settings.ditherStrength;
+  const travel = settings.speed * 8;
+  const driftX = Math.cos(phase) * travel;
+  const driftY = Math.sin(phase) * travel * 0.7;
+  const baseSize = glyphCell * (settings.particleType === "dot" ? 0.72 : 0.9);
+  const glyphs: AsciiGlyph[] = [];
+
+  for (const cell of getAsciiMediaGrid({ height, settings, width })) {
+    const gridX = cell.gridX + driftX;
+    const gridY = cell.gridY + driftY;
+    const nx = gridX * 0.066;
+    const ny = gridY * 0.066;
+    const sweep = (Math.sin(nx * 7.8 + ny * 4.2 + phase) + 1) * 0.5;
+    const sourceTone = sampleAsciiSourceLuminance(sourceSampler, cell.x, cell.y);
+    const sourceDepthTone = getAsciiMediaDepthTone(sourceTone, settings.ditherContrast);
+    const sourceEnvelope =
+      sourceDepthTone * (1 - cell.voidField * 0.72) +
+      (cell.organicDetail - 0.5) * 0.08 +
+      (cell.edgeNoise - 0.5) * 0.06 +
+      (sweep - 0.5) * 0.04;
+    const normalized = clamp(sourceEnvelope, 0, 1);
+    const intensity = smoothstep(
+      threshold - 0.34 / cutoffStrength,
+      threshold + 0.34 / cutoffStrength,
+      normalized,
+    );
+    const organicMask = clamp(
+      cell.mask * (0.78 + cell.voidField * 0.5) + cell.voidField * 0.14,
+      0,
+      1,
+    );
+    const flicker = 0.82 + 0.18 * Math.sin(phase + cell.flickerOffset);
+    const visibility = intensity * density * flicker;
+
+    if (visibility <= organicMask * 0.95) {
+      continue;
+    }
+
+    const particleTone = getAsciiVisibleParticleTone(
+      sourceDepthTone,
+      threshold,
+      cutoffStrength,
+    );
+
+    glyphs.push({
+      char: getGlyphForCell(
+        settings.particleType,
+        intensity,
+        cell.mask,
+        cell.column,
+        cell.row,
+      ),
+      color: getCachedAsciiParticleColor(particleTone, settings.ditherContrast),
+      size: baseSize,
+      thickness: Math.max(1, baseSize * 0.14),
+      x: cell.x,
+      y: cell.y,
+    });
+  }
+
+  return {
+    background: settings.background,
+    glyphs,
+    height,
+    includeBackground,
+    width,
+  };
+}
+
+function createAsciiProceduralPatternFrame({
+  height,
+  includeBackground,
+  progress,
+  settings,
+  width,
+}: {
+  height: number;
+  includeBackground: boolean;
+  progress: number;
+  settings: AsciiPatternSettings;
+  width: number;
+}): AsciiPatternFrame {
+  const glyphCell = Math.max(3, settings.scale);
+  const phase = progress * Math.PI * 2;
+  const density = settings.density / 100;
+  const threshold = settings.ditherThreshold;
+  const cutoffStrength = settings.ditherStrength;
+  const travel = settings.speed * 8;
+  const driftX = Math.cos(phase) * travel;
+  const driftY = Math.sin(phase) * travel * 0.7;
+  const baseSize = glyphCell * (settings.particleType === "dot" ? 0.72 : 0.9);
+  const glyphs: AsciiGlyph[] = [];
+
+  for (const cell of getAsciiMediaGrid({ height, settings, width })) {
+    const gridX = cell.gridX + driftX;
+    const gridY = cell.gridY + driftY;
+    const nx = gridX * 0.066;
+    const ny = gridY * 0.066;
+    const sweep = (Math.sin(nx * 7.8 + ny * 4.2 + phase) + 1) * 0.5;
+    const counterSweep = (Math.sin(nx * -4.4 + ny * 8.6 + phase * 0.7) + 1) * 0.5;
+    const band =
+      (Math.sin((cell.column - cell.row) * 0.035 + phase * 1.4) + 1) * 0.5;
+    const normalized = clamp(
+      0.34 * (1 - cell.voidField) +
+        0.2 * cell.organicDetail +
+        0.18 * cell.edgeNoise +
+        0.15 * sweep +
+        0.09 * counterSweep +
+        0.04 * band,
+      0,
+      1,
+    );
+    const intensity = smoothstep(
+      threshold - 0.34 / cutoffStrength,
+      threshold + 0.34 / cutoffStrength,
+      normalized,
+    );
+    const organicMask = clamp(
+      cell.mask * (0.78 + cell.voidField * 0.5) + cell.voidField * 0.14,
+      0,
+      1,
+    );
+    const flicker = 0.82 + 0.18 * Math.sin(phase + cell.flickerOffset);
+
+    if (intensity * density * flicker <= organicMask * 0.95) {
+      continue;
+    }
+
+    const particleTone = getAsciiVisibleParticleTone(
+      normalized,
+      threshold,
+      cutoffStrength,
+    );
+
+    glyphs.push({
+      char: getGlyphForCell(
+        settings.particleType,
+        intensity,
+        cell.mask,
+        cell.column,
+        cell.row,
+      ),
+      color: getCachedAsciiParticleColor(particleTone, settings.ditherContrast),
+      size: baseSize,
+      thickness: Math.max(1, baseSize * 0.14),
+      x: cell.x,
+      y: cell.y,
+    });
+  }
+
+  return {
+    background: settings.background,
+    glyphs,
+    height,
+    includeBackground,
+    width,
+  };
+}
+
 export function createAsciiPatternFrame({
   height,
   includeBackground,
@@ -686,107 +1001,24 @@ export function createAsciiPatternFrame({
   sourceSampler?: AsciiSourceSampler;
   width: number;
 }): AsciiPatternFrame {
-  const glyphCell = Math.max(3, settings.scale);
-  const gridStep = Math.max(3, settings.scale + settings.spacing);
-  const columns = Math.ceil(width / gridStep) + 2;
-  const rows = Math.ceil(height / gridStep) + 2;
-  const glyphs: AsciiGlyph[] = [];
-  const phase = progress * Math.PI * 2;
-  const density = settings.density / 100;
-  const threshold = settings.ditherThreshold;
-  const cutoffStrength = settings.ditherStrength;
-  const voidAmount = settings.voids;
-  const travel = settings.speed * 8;
-  const driftX = Math.cos(phase) * travel;
-  const driftY = Math.sin(phase) * travel * 0.7;
-
-  for (let row = -1; row < rows; row += 1) {
-    for (let column = -1; column < columns; column += 1) {
-      const x = column * gridStep + gridStep * 0.5;
-      const y = row * gridStep + gridStep * 0.5;
-      const gridX = x / gridStep + driftX;
-      const gridY = y / gridStep + driftY;
-      const warpX =
-        (valueNoise(gridX * 0.038 + Math.cos(phase) * 1.7, gridY * 0.038, 101) - 0.5) *
-        8.5;
-      const warpY =
-        (valueNoise(gridX * 0.038, gridY * 0.038 + Math.sin(phase) * 1.7, 149) - 0.5) *
-        8.5;
-      const organicX = (gridX + warpX) * 0.082;
-      const organicY = (gridY + warpY) * 0.082;
-      const organicVoid = fractalNoise(organicX, organicY, 5);
-      const organicDetail = fractalNoise(
-        organicX * 2.35 + 9.2,
-        organicY * 2.35 - 4.7,
-        19,
-        2,
-      );
-      const edgeNoise = valueNoise(gridX * 0.32 - driftY, gridY * 0.32 + driftX, 31);
-      const rawVoidField =
-        organicVoid + (organicDetail - 0.5) * 0.28 + (edgeNoise - 0.5) * 0.2;
-      const voidThresholdShift = (voidAmount - 1) * 0.12;
-      const voidField = clamp(
-        smoothstep(0.54 - voidThresholdShift, 0.82 - voidThresholdShift, rawVoidField) *
-          voidAmount,
-        0,
-        1,
-      );
-      const nx = gridX * 0.066;
-      const ny = gridY * 0.066;
-      const sweep = (Math.sin(nx * 7.8 + ny * 4.2 + phase) + 1) * 0.5;
-      const counterSweep = (Math.sin(nx * -4.4 + ny * 8.6 + phase * 0.7) + 1) * 0.5;
-      const band = (Math.sin((column - row) * 0.035 + phase * 1.4) + 1) * 0.5;
-      const sourceTone =
-        sourceSampler === undefined ? undefined : sampleAsciiSourceLuminance(sourceSampler, x, y);
-      const proceduralEnvelope =
-        0.34 * (1 - voidField) +
-        0.2 * organicDetail +
-        0.18 * edgeNoise +
-        0.15 * sweep +
-        0.09 * counterSweep +
-        0.04 * band;
-      const sourceEnvelope =
-        sourceTone === undefined
-          ? undefined
-          : sourceTone * (1 - voidField * 0.72) +
-            (organicDetail - 0.5) * 0.08 +
-            (edgeNoise - 0.5) * 0.06 +
-            (sweep - 0.5) * 0.04;
-      const normalized = clamp(sourceEnvelope ?? proceduralEnvelope, 0, 1);
-      const intensity = smoothstep(
-        threshold - 0.34 / cutoffStrength,
-        threshold + 0.34 / cutoffStrength,
-        normalized,
-      );
-      const mask = hashNoise(column, row, 41);
-      const organicMask = clamp(mask * (0.78 + voidField * 0.5) + voidField * 0.14, 0, 1);
-      const flicker = 0.82 + 0.18 * Math.sin(phase + hashNoise(column, row, 11) * Math.PI * 2);
-      const visibility = intensity * density * flicker;
-
-      if (visibility <= organicMask * 0.95) {
-        continue;
-      }
-
-      const particleTone = clamp(visibility * 0.86 + intensity * 0.14, 0, 1);
-      const baseSize = glyphCell * (settings.particleType === "dot" ? 0.72 : 0.9);
-
-      glyphs.push({
-        char: getGlyphForCell(settings.particleType, intensity, mask, column, row),
-        color: getAsciiParticleColor(particleTone, settings.ditherContrast),
-        size: baseSize * getAsciiParticleDepthScale(particleTone, settings.ditherContrast),
-        x,
-        y,
-      });
-    }
+  if (sourceSampler) {
+    return createAsciiMediaPatternFrame({
+      height,
+      includeBackground,
+      progress,
+      settings,
+      sourceSampler,
+      width,
+    });
   }
 
-  return {
-    background: settings.background,
-    glyphs,
+  return createAsciiProceduralPatternFrame({
     height,
     includeBackground,
+    progress,
+    settings,
     width,
-  };
+  });
 }
 
 export function drawAsciiPatternFrame(
@@ -801,54 +1033,50 @@ export function drawAsciiPatternFrame(
     context.fillRect(0, 0, frame.width, frame.height);
   }
 
+  const glyphsByColor = new Map<string, AsciiGlyph[]>();
   for (const glyph of frame.glyphs) {
-    context.fillStyle = glyph.color;
-    if (glyph.char === "+") {
-      const length = glyph.size * 0.58;
-      const thickness = Math.max(1, glyph.size * 0.14);
-      context.fillRect(glyph.x - length / 2, glyph.y - thickness / 2, length, thickness);
-      context.fillRect(glyph.x - thickness / 2, glyph.y - length / 2, thickness, length);
-      continue;
-    }
+    const colorGlyphs = glyphsByColor.get(glyph.color);
+    if (colorGlyphs) colorGlyphs.push(glyph);
+    else glyphsByColor.set(glyph.color, [glyph]);
+  }
 
-    if (glyph.char === "/" || glyph.char === "\\") {
-      const markSize = Math.max(1, glyph.size * 0.18);
-      const halfMark = markSize / 2;
-      const offset = glyph.size * 0.28;
-      if (glyph.char === "/") {
-        context.fillRect(
-          glyph.x - offset - halfMark,
-          glyph.y + offset - halfMark,
-          markSize,
-          markSize,
-        );
-        context.fillRect(glyph.x - halfMark, glyph.y - halfMark, markSize, markSize);
-        context.fillRect(
-          glyph.x + offset - halfMark,
-          glyph.y - offset - halfMark,
-          markSize,
-          markSize,
-        );
-      } else {
-        context.fillRect(
-          glyph.x - offset - halfMark,
-          glyph.y - offset - halfMark,
-          markSize,
-          markSize,
-        );
-        context.fillRect(glyph.x - halfMark, glyph.y - halfMark, markSize, markSize);
-        context.fillRect(
-          glyph.x + offset - halfMark,
-          glyph.y + offset - halfMark,
-          markSize,
-          markSize,
-        );
+  for (const [color, colorGlyphs] of glyphsByColor) {
+    context.beginPath();
+    for (const glyph of colorGlyphs) {
+      if (glyph.char === "+") {
+        const length = glyph.size * 0.58;
+        const thickness = glyph.thickness;
+        context.rect(glyph.x - length / 2, glyph.y - thickness / 2, length, thickness);
+        context.rect(glyph.x - thickness / 2, glyph.y - length / 2, thickness, length);
+        continue;
       }
-      continue;
-    }
 
-    const dotSize = Math.max(1, glyph.size * 0.2);
-    context.fillRect(glyph.x - dotSize / 2, glyph.y - dotSize / 2, dotSize, dotSize);
+      if (glyph.char === "/" || glyph.char === "\\") {
+        const markSize = Math.max(1, glyph.size * 0.18);
+        const halfMark = markSize / 2;
+        const offset = glyph.size * 0.28;
+        const direction = glyph.char === "/" ? -1 : 1;
+        context.rect(
+          glyph.x - offset - halfMark,
+          glyph.y - direction * offset - halfMark,
+          markSize,
+          markSize,
+        );
+        context.rect(glyph.x - halfMark, glyph.y - halfMark, markSize, markSize);
+        context.rect(
+          glyph.x + offset - halfMark,
+          glyph.y + direction * offset - halfMark,
+          markSize,
+          markSize,
+        );
+        continue;
+      }
+
+      const dotSize = Math.max(1, glyph.size * 0.2);
+      context.rect(glyph.x - dotSize / 2, glyph.y - dotSize / 2, dotSize, dotSize);
+    }
+    context.fillStyle = color;
+    context.fill();
   }
 
   context.restore();
@@ -883,10 +1111,18 @@ export function createAsciiPatternSvg(frame: AsciiPatternFrame): string {
     ? `<rect width="100%" height="100%" fill="${escapeXml(frame.background)}" />`
     : "";
   const glyphs = frame.glyphs
-    .map(
-      (glyph) =>
-        `<text x="${glyph.x.toFixed(2)}" y="${glyph.y.toFixed(2)}" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="${glyph.size.toFixed(2)}" text-anchor="middle" dominant-baseline="middle" fill="${escapeXml(glyph.color)}">${escapeXml(glyph.char)}</text>`,
-    )
+    .map((glyph) => {
+      const color = escapeXml(glyph.color);
+      const particleAttributes = `data-particle-color="${color}" data-glyph-size="${glyph.size.toFixed(2)}"`;
+
+      if (glyph.char === "+") {
+        const length = glyph.size * 0.58;
+        const thickness = glyph.thickness;
+        return `<g ${particleAttributes} data-stroke-width="${thickness.toFixed(2)}" fill="${color}"><rect x="${(glyph.x - length / 2).toFixed(2)}" y="${(glyph.y - thickness / 2).toFixed(2)}" width="${length.toFixed(2)}" height="${thickness.toFixed(2)}" /><rect x="${(glyph.x - thickness / 2).toFixed(2)}" y="${(glyph.y - length / 2).toFixed(2)}" width="${thickness.toFixed(2)}" height="${length.toFixed(2)}" /></g>`;
+      }
+
+      return `<text ${particleAttributes} x="${glyph.x.toFixed(2)}" y="${glyph.y.toFixed(2)}" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="${glyph.size.toFixed(2)}" text-anchor="middle" dominant-baseline="middle" fill="${color}">${escapeXml(glyph.char)}</text>`;
+    })
     .join("");
 
   return [

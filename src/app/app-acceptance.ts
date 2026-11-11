@@ -364,6 +364,19 @@ export const appTransferMode: ToolcraftTransferMode = {
   videoReferenceStudy: {
     acceptanceMapping: [
       {
+        acceptanceId: "reference.video.default-display",
+        behavior:
+          "A fresh load uses the second 2026-09-14 recording's dense, bright cross field as the default while preserving deterministic organic voids.",
+        frameIds: [
+          "default-target-f00",
+          "default-target-f01",
+          "default-target-f02",
+          "default-target-f03",
+          "default-target-f04",
+          "default-target-f05",
+        ],
+      },
+      {
         acceptanceId: "reference.video.motif",
         behavior:
           "The output uses a black-backed ASCII/dither field with organic void islands, wave bands, and cross/dot particles derived from the reference frames and the latest visual direction.",
@@ -377,11 +390,11 @@ export const appTransferMode: ToolcraftTransferMode = {
       },
     ],
     behaviorDecomposition:
-      "The reference decomposes into a fixed black canvas, dense ASCII grid cells, dark negative-space islands, diagonal/wave dither bands, particle glyph families, and a forward timeline-driven density/depth breathing loop. The generated app maps those behaviors through procedural cells, deterministic organic noise, timeline loop progress, particle type selection, density/scale/spacing/dither/depth controls, and export-at-current-time output.",
+      "The references decompose into a fixed black canvas, dense ASCII grid cells, dark negative-space islands, diagonal/wave dither bands, particle glyph families, and a forward timeline-driven density/depth breathing loop. The second 2026-09-14 recording establishes a denser and brighter default: larger tightly spaced crosses, near-full occupancy, expanded tonal depth, and low cutoff while mark geometry remains stable. The generated app maps those behaviors through procedural cells, deterministic organic noise, timeline loop progress, particle type selection, density/scale/spacing/dither/depth controls, and export-at-current-time output.",
     extractionEvidence:
-      "ffprobe was unavailable, so AVFoundation metadata via mdls recorded 11.88166666666667s at 2036x1436 with H.264. avconvert produced short clips at 0, 2, 4, 6, 8, and 10 seconds, Quick Look generated frame PNGs in docs/toolcraft/reference-video-frames, and contact-sheet.png was reviewed before implementation.",
+      "For the original reference, AVFoundation metadata recorded 11.88166666666667s at 2036x1436 and six frames were reviewed in docs/toolcraft/reference-video-frames. For the 2026-09-14 current/target pair, Chromium reported 5.145s at 2586x1718 and 5.63s at 1038x1002; six evenly spaced frames from each recording plus eight deterministic app candidates were reviewed in docs/toolcraft/reference-default-display before implementation.",
     referenceLocation:
-      "/Users/pierrevoisin/Desktop/Enregistrement de l’écran 2026-07-04 à 10.20.45.mov",
+      "/Users/pierrevoisin/Desktop/Enregistrement de l’écran 2026-07-04 à 10.20.45.mov plus the 2026-09-14 current/target recordings documented in docs/toolcraft/reference-default-display/study.md",
     storyboard: [
       {
         behaviorObservation:
@@ -437,6 +450,60 @@ export const appTransferMode: ToolcraftTransferMode = {
         visualObservation:
           "Black gaps dominate again with rectangular ASCII islands and bright particle clusters.",
       },
+      {
+        behaviorObservation:
+          "The requested default begins with near-full particle occupancy while dark organic openings interrupt the fixed grid.",
+        frameId: "default-target-f00",
+        frameSource: "docs/toolcraft/reference-default-display/video-2-f00.png",
+        timeSeconds: 0,
+        visualObservation:
+          "Large bright crosses form a compact field with stronger tonal separation than the previous tool default.",
+      },
+      {
+        behaviorObservation:
+          "Organic voids move through the field without a global brightness jump or geometry change.",
+        frameId: "default-target-f01",
+        frameSource: "docs/toolcraft/reference-default-display/video-2-f01.png",
+        timeSeconds: 1.126,
+        visualObservation:
+          "Bright and mid-gray particles remain tightly spaced around irregular dark openings.",
+      },
+      {
+        behaviorObservation:
+          "Large negative-space islands reshape while particle occupancy stays high outside them.",
+        frameId: "default-target-f02",
+        frameSource: "docs/toolcraft/reference-default-display/video-2-f02.png",
+        timeSeconds: 2.252,
+        visualObservation:
+          "The dense cross field keeps its fixed scale and stroke while void boundaries advance.",
+      },
+      {
+        behaviorObservation:
+          "Tonal bands travel through stable cross geometry and create apparent depth through color variation.",
+        frameId: "default-target-f03",
+        frameSource: "docs/toolcraft/reference-default-display/video-2-f03.png",
+        timeSeconds: 3.378,
+        visualObservation:
+          "Near-white marks, mid-gray marks, and dark openings are simultaneously distinguishable.",
+      },
+      {
+        behaviorObservation:
+          "Bright regions continue to migrate without introducing flicker or particle-size animation.",
+        frameId: "default-target-f04",
+        frameSource: "docs/toolcraft/reference-default-display/video-2-f04.png",
+        timeSeconds: 4.504,
+        visualObservation:
+          "Localized dim regions retain detail rather than darkening the full field.",
+      },
+      {
+        behaviorObservation:
+          "The same forward procedural motion continues through the end of the supplied target recording.",
+        frameId: "default-target-f05",
+        frameSource: "docs/toolcraft/reference-default-display/video-2-f05.png",
+        timeSeconds: 5.62,
+        visualObservation:
+          "Background, particle family, grid scale, and cross stroke remain visually stable.",
+      },
     ],
     transitionAnalysis: [
       {
@@ -474,6 +541,13 @@ export const appTransferMode: ToolcraftTransferMode = {
         id: "f008-f010",
         toFrameId: "f010",
       },
+      {
+        behaviorDelta:
+          "Across default-target-f00 to default-target-f05, dense bright particles stay registered to one grid while irregular void and tone fields move continuously without flashes or scale changes.",
+        fromFrameId: "default-target-f00",
+        id: "default-target-f00-f05",
+        toFrameId: "default-target-f05",
+      },
     ],
   },
 };
@@ -482,12 +556,44 @@ export const appProductReadiness: ToolcraftProductReadiness = {
   mode: "product",
   productName: "CHEVAL NOIR DITHER",
   productSummary:
-    "Generates animated procedural, source-image, or source-video ASCII/dither patterns with selectable particle glyphs including diagonal hatches, density, scale, spacing, organic void zones, motion speed, dither strength, contrast, threshold, SVG still export, PNG/JPG image export, and MP4/WebM video export.",
+    "Generates animated procedural, source-image, or source-video ASCII/dither patterns with a dense bright cross-field default derived from the second 2026-09-14 reference recording, independent image and video inversion, selectable particle glyphs including diagonal hatches, density, scale, spacing, organic void zones, motion speed, dither strength, depth, threshold, SVG still export, PNG/JPG image export, and optimized GIF plus MP4/WebM animation export.",
   requestedBehavior:
-    "Create CHEVAL NOIR DITHER: an app that randomly generates the ASCII motif style from the reference video or applies the same effect to an uploaded source image or video, reproduces the animation, lets the user choose cross, mini-dot, mixed, or diagonal hatch particles, tune density, spacing, random organic void zones, animation speed, scale, dither strength, contrast, and dither threshold, then export still SVG images and MP4 video animation.",
+    "Create CHEVAL NOIR DITHER: an app that randomly generates the ASCII motif style from the reference video or applies the same effect to an uploaded source image or video, opens on the dense bright cross-field appearance shown in the second 2026-09-14 recording, can independently invert an uploaded image or video's light and dark values, reproduces the animation, lets the user choose cross, mini-dot, mixed, or diagonal hatch particles, tune density, spacing, random organic void zones, animation speed, scale, dither strength, depth, and dither threshold, then export SVG/PNG stills plus optimized animated GIF, MP4, or WebM output.",
 };
 
 export const appAcceptance: readonly ToolcraftComponentAcceptance[] = [
+  {
+    automated: true,
+    automatedTestName: "source video invert swaps light and dark dither output",
+    browser: true,
+    browserTestName: "browser: source video invert swaps light and dark dither output",
+    componentType: "checkbox",
+    evidence: "timeline-output",
+    expectedObservable:
+      "After a video is uploaded, enabling Invert swaps each decoded frame's normalized light and dark values in paused preview, playback, timeline scrub, and every export while preserving the source file; source image inversion remains independent.",
+    fixture: "short asymmetric high-contrast source video fixture",
+    id: "source.video.invert",
+    kind: "control",
+    target: "source.video.invert",
+    userAction:
+      "Upload a source video, pause playback, compare the preview and SVG export with Source Video Invert off and on, scrub the timeline, then reset the Source Video section.",
+  },
+  {
+    automated: true,
+    automatedTestName: "source image invert swaps light and dark dither output",
+    browser: true,
+    browserTestName: "browser: source image invert swaps light and dark dither output",
+    componentType: "checkbox",
+    evidence: "product-output",
+    expectedObservable:
+      "After an image is uploaded, enabling Invert swaps its normalized light and dark values in the preview and every export while preserving the original media asset; source video output is unaffected.",
+    fixture: "high-contrast source image fixture with asymmetric luminance regions",
+    id: "source.image.invert",
+    kind: "control",
+    target: "source.image.invert",
+    userAction:
+      "Upload a source image, compare the preview and SVG export with Invert off and on, then reset the Source Image section.",
+  },
   {
     automated: true,
     automatedTestName: "source image upload clear reset and transforms update dither output",
@@ -512,14 +618,14 @@ export const appAcceptance: readonly ToolcraftComponentAcceptance[] = [
     componentType: "fileDrop",
     evidence: "media-lifecycle",
     expectedObservable:
-      "Uploading a source video changes the file list and rendered ASCII dither output; low-contrast frames are auto-leveled into visible particles; timeline scrub samples different video frames; SVG and video exports consume the video source; clear, section reset, and global Reset remove the video source and restore image/procedural fallback output.",
+      "Uploading a source video changes the file list and rendered ASCII dither output; low-contrast frames are auto-leveled into visible particles; playback follows decoded source frames at native speed and loops without stretching a short source across the Toolcraft timeline; paused timeline scrub samples deterministic video frames; SVG and video exports consume the video source; clear, section reset, and global Reset remove the video source and restore image/procedural fallback output.",
     fixture:
       "short high-contrast and low-contrast source video fixtures with changing luminance regions",
     id: "source.video",
     kind: "control",
     target: "source.video",
     userAction:
-      "Upload a source video, scrub the timeline, export SVG and Video, remove it, upload again, then use section reset and Reset controls while observing the rendered output.",
+      "Upload a source video, scrub while paused, play and observe native source-frame cadence, export SVG and Video, remove it, upload again, then use section reset and Reset controls while observing the rendered output.",
   },
   {
     automated: true,
@@ -642,13 +748,13 @@ export const appAcceptance: readonly ToolcraftComponentAcceptance[] = [
     componentType: "slider",
     evidence: "product-output",
     expectedObservable:
-      "Dragging Depth separates weak and strong particles through tone and apparent size, from a flatter field at 0 to maximum depth at 2.",
-    fixture: "mid-density ASCII pattern fixture with visible particle tone range",
+      "Dragging Depth progressively expands source-media tones and reveals nuanced black-subject detail across the full 0-to-3 range while geometry stays unchanged.",
+    fixture: "bimodal source-media fixture with a nuanced black subject on a pale background",
     id: "dither.contrast",
     kind: "control",
     target: "dither.contrast",
     userAction:
-      "Drag Depth and verify particle tone and apparent size separation change in the live output.",
+      "Drag Depth through 0, 1, 2, and 3; verify dark-subject detail increases continuously without changing particle size.",
   },
   {
     automated: true,
@@ -734,20 +840,20 @@ export const appAcceptance: readonly ToolcraftComponentAcceptance[] = [
   },
   {
     automated: true,
-    automatedTestName: "video format selects supported recorder container",
+    automatedTestName: "video format exports recorder and optimized GIF output",
     browser: true,
-    browserTestName: "browser: video export produces timeline-duration metadata",
+    browserTestName: "browser: optimized GIF export preserves dimensions duration and loop",
     componentType: "select",
     evidence: "exported-bytes",
     expectedObservable:
-      "Choosing MP4 or WebM requests that container and falls back safely to a supported MediaRecorder MIME type when needed.",
+      "Choosing GIF creates a looping, reduced-palette animated GIF with timeline-matched duration, while MP4 or WebM uses a supported MediaRecorder container.",
     fixture: "short timeline video export fixture",
     id: "export.video.format",
     kind: "control",
-    optionCoverage: ["mp4", "webm"],
+    optionCoverage: ["mp4", "webm", "gif"],
     target: "export.video.format",
     userAction:
-      "Choose MP4, export video, verify unsupported MP4 falls back safely if needed, then choose WebM and export again.",
+      "Choose GIF and verify GIF89a bytes, dimensions, reduced palette, loop metadata, and timeline duration; verify MP4/WebM recorder output separately.",
   },
   {
     automated: true,
@@ -775,7 +881,7 @@ export const appAcceptance: readonly ToolcraftComponentAcceptance[] = [
     componentType: "panelActions",
     evidence: "exported-bytes",
     expectedObservable:
-      "Export SVG creates SVG text/vector bytes, Export PNG creates PNG/JPG image bytes using image settings, and Export Video creates MP4/WebM-compatible video bytes using video settings.",
+      "Export SVG creates SVG text/vector bytes, Export PNG creates PNG/JPG image bytes using image settings, and Export Video creates optimized GIF or MP4/WebM-compatible animation bytes using video settings.",
     fixture: "default ASCII output delivery fixture",
     id: "actions.output",
     kind: "control",
@@ -842,6 +948,22 @@ export const appAcceptance: readonly ToolcraftComponentAcceptance[] = [
   },
   {
     automated: true,
+    automatedTestName: "second video reference defines dense bright default field",
+    browser: true,
+    browserTestName: "browser: second video reference defines dense bright default field",
+    componentType: "custom-renderer",
+    evidence: "product-output",
+    expectedObservable:
+      "A fresh load and reset use Crosses, Scale 24, Spacing -8px, Voids 1, Density 100%, Speed 1, Strength 2.4, Depth 3, and Threshold 0.1, producing a dense bright multi-tone field with organic dark openings like the second 2026-09-14 recording.",
+    fixture: "2026-09-14 second-video six-frame storyboard and candidate-f comparison",
+    id: "reference.video.default-display",
+    kind: "runtime",
+    target: "reference.video.default-display",
+    userAction:
+      "Open a fresh app state, verify the default controls and exported SVG particle count/color range, change Pattern and Dither values, then reset those sections and verify the reference defaults return.",
+  },
+  {
+    automated: true,
     automatedTestName: "video reference motif maps to generated ASCII renderer",
     browser: true,
     browserTestName: "browser: reference video motif is reproduced in product output",
@@ -878,20 +1000,20 @@ export const starterControlSectionInventory: readonly ToolcraftControlSectionInv
   {
     entity: "Source image",
     groupingReason:
-      "The image upload owns still source material and remains the fallback when no source video is present.",
+      "The image upload owns still source material and its light/dark inversion, and remains the fallback when no source video is present.",
     splitReason:
       "Image and video uploads share the source workflow but need distinct visible section titles because fileDrop boxes do not render their schema labels inside the empty drop zone.",
-    targets: ["source.image"],
+    targets: ["source.image", "source.image.invert"],
     title: "Source Image",
     workflowStage: "still-source",
   },
   {
     entity: "Source video",
     groupingReason:
-      "The video upload owns animated source material and overrides the still image while present.",
+      "The video upload owns animated source material and its light/dark inversion, and overrides the still image while present.",
     splitReason:
       "Image and video uploads share the source workflow but need distinct visible section titles because fileDrop boxes do not render their schema labels inside the empty drop zone.",
-    targets: ["source.video"],
+    targets: ["source.video", "source.video.invert"],
     title: "Source Video",
     workflowStage: "animated-source",
   },
@@ -939,7 +1061,7 @@ export const starterControlSectionInventory: readonly ToolcraftControlSectionInv
   {
     entity: "Video export",
     groupingReason:
-      "Format and resolution are the compact workflow pair for MP4/WebM animation output.",
+      "Format and resolution are the compact workflow pair for GIF/MP4/WebM animation output.",
     targets: ["export.video.format", "export.video.resolution"],
     title: "Video Export",
   },

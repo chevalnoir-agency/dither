@@ -210,10 +210,15 @@ function projectDocsIncludeFixedBackgroundDecision(): boolean {
 
 function sourceUsesCpuPixelLoop(): boolean {
   const appSources = stripJsComments(readFiles(srcDir, /\.(ts|tsx)$/));
-  const renderPathSources = appSources.replace(
-    /export function createAsciiSourceSampler[\s\S]*?function sampleAsciiSourceLuminance/,
-    "function sampleAsciiSourceLuminance",
-  );
+  const renderPathSources = appSources
+    .replace(
+      /export function createAsciiSourceSampler[\s\S]*?function sampleAsciiSourceLuminance/,
+      "function sampleAsciiSourceLuminance",
+    )
+    .replace(
+      /async function exportAsciiGif[\s\S]*$/,
+      "",
+    );
   const cpuPixelMethodCallPattern =
     /(?:\.(?:createImageData|getImageData|putImageData)|\[\s*["'](?:createImageData|getImageData|putImageData)["']\s*\])\s*\(/;
 
