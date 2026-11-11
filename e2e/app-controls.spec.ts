@@ -645,6 +645,57 @@ async function readExportedVideoDurationMetadata(page: Page) {
   return duration;
 }
 
+async function readExportedMp4Structure(page: Page) {
+  return page.evaluate(async () => {
+    const record = (window as Window & {
+      __toolcraftLastExport?: { blob: Blob };
+    }).__toolcraftLastExport;
+
+    if (!record) {
+      throw new Error("Missing exported video.");
+    }
+
+    const bytes = new Uint8Array(await record.blob.arrayBuffer());
+    const view = new DataView(bytes.buffer);
+    const readType = (offset: number): string =>
+      String.fromCharCode(...bytes.subarray(offset + 4, offset + 8));
+    const topLevel: string[] = [];
+    let headerDurationSeconds = 0;
+
+    for (let offset = 0; offset + 8 <= bytes.length; ) {
+      const size = view.getUint32(offset) || bytes.length - offset;
+      const type = readType(offset);
+      topLevel.push(type);
+
+      if (type === "moov") {
+        for (let child = offset + 8; child + 8 <= offset + size; ) {
+          const childSize = view.getUint32(child);
+          if (readType(child) === "mvhd") {
+            const version = bytes[child + 8];
+            const timescale = view.getUint32(child + (version === 1 ? 28 : 20));
+            const duration =
+              version === 1
+                ? Number(view.getBigUint64(child + 32))
+                : view.getUint32(child + 24);
+            headerDurationSeconds = duration / timescale;
+          }
+          if (childSize < 8) {
+            break;
+          }
+          child += childSize;
+        }
+      }
+
+      if (size < 8) {
+        break;
+      }
+      offset += size;
+    }
+
+    return { headerDurationSeconds, topLevel, type: record.blob.type };
+  });
+}
+
 async function readExportedGifMetadata(page: Page) {
   return page.evaluate(async () => {
     const record = (window as Window & {
@@ -848,6 +899,17 @@ test("browser: source video upload clear reset and timeline frames update dither
   expect(sourceVideoMetadata.durationSeconds).toBe(1);
   expect(sourceVideoMetadata.videoWidth).toBe(1920);
   expect(sourceVideoMetadata.videoHeight).toBe(1080);
+  const sourceVideoMp4 = await readExportedMp4Structure(page);
+  if (sourceVideoMp4.type.startsWith("video/mp4")) {
+    // MP4 must be a standard progressive file: players and editors outside the
+    // browser reject fragmented MP4 with a zero header duration.
+    expect(sourceVideoMp4.topLevel).not.toContain("moof");
+    expect(sourceVideoMp4.topLevel.indexOf("moov")).toBeLessThan(
+      sourceVideoMp4.topLevel.indexOf("mdat"),
+    );
+    expect(sourceVideoMp4.headerDurationSeconds).toBeGreaterThan(0.75);
+    expect(sourceVideoMp4.headerDurationSeconds).toBeLessThan(1.75);
+  }
 
   await expectToolcraftProductObservableToChange(
     page,

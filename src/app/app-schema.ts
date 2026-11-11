@@ -324,7 +324,7 @@ export const appSchema = defineToolcraft({
               ],
               orderRole: "mode",
               performanceReason:
-                "Video format selects MediaRecorder video or optimized palette GIF encoding during export.",
+                "Video format selects standard H.264 MP4, MediaRecorder WebM, or optimized palette GIF encoding during export.",
               performanceRole: "responsiveness",
               target: "export.video.format",
               type: "select",

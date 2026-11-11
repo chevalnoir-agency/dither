@@ -509,11 +509,28 @@ CHEVAL NOIR DITHER is a product app with a custom Canvas 2D renderer, optional s
 - Skipped checks: Full `pnpm verify:perf` is not required for this post-first-working feature because inversion adds one constant operation per already-sampled video luminance value, does not change decode cadence, sampler dimensions, grid size, glyph limits, render scale, or export frame count, and the touched control-change scenario passed.
 - Risks: Both Source Image and Source Video expose the concise label `Invert`; they intentionally live in separately titled sections, and video continues to override image output while present.
 
+### Iteration 30 — Standard MP4 Export
+
+- Request: Check on the deployed version why MP4 exports do not work, then update the code and deploy it to Vercel.
+- Task type: Tier 4 post-first-working export bug fix touching encoded MP4 bytes and adding the `mp4-muxer` dependency; no renderer, control, or timeline behavior change.
+- User-visible result: `Export Video` with `MP4` now downloads a standard progressive H.264 file (constant 30 fps, real duration header, `moov` before `mdat`) that opens in QuickTime, Finder preview, editing software, and upload pipelines instead of only in Chromium. Export no longer runs in real time: frames are encoded as fast as they render.
+- Source/reference checked: Deployed app at `https://chevalnoirdither.vercel.app` driven in the agent browser; the MP4 it exported at 1920x1080 parsed as `ftyp, moov, (moof, mdat) x4` with `mvhd` duration `0`, i.e. a fragmented MediaRecorder file; `exportAsciiVideo`, the frame-stepped GIF path, and the `mp4-muxer` type definitions.
+- Reference inputs: User report that online MP4 exports do not work; exported bytes from the deployed build; no visual reference.
+- Docs/contracts read: `AGENTS.md`, `docs/toolcraft/workflow.md`, export rows of `acceptance-testing.md`, `performance.md`, and `decision-contract.md`; root cause established before editing per `systematic-debugging`.
+- Contract rules applied: `output-export-required`, `acceptance-product-observable`, `performance-coverage-levels`, and `workflow-required`.
+- Decision: Encode MP4 frame by frame with WebCodecs `VideoEncoder` (H.264 High, falling back to Main/Baseline, level chosen from frame size, keyframe every 2 s, even dimensions) and mux with `mp4-muxer` using in-memory fast start. Frames come from the same deterministic seek-based sampler factory as GIF. MediaRecorder stays as the fallback when no H.264 WebCodecs encoder is available, and remains the WebM path.
+- Alternatives rejected: Keeping MediaRecorder and dropping the 1 s timeslice was rejected because Chromium still writes fragmented MP4 with real-time variable cadence; post-processing fragments into a progressive file by hand was rejected as more fragile than a maintained muxer; server-side transcoding was rejected because the app is a static client-only deployment.
+- State/output mapping: `export.video.format = mp4` selects the WebCodecs path; `export.video.resolution` still passes through `getToolcraftVideoExportSize`; timeline duration sets frame count (`round(duration x 30)`); background inclusion, source image/video sampling, and `reportProgress` are unchanged.
+- Files changed: `src/app/ascii-export.ts`, `src/app/app-schema.ts` (format description), `e2e/app-controls.spec.ts`, `package.json`, `pnpm-lock.yaml`, and this worklog.
+- Verification: Agent-browser export on the local build at 1920x1080 produced `ftyp, moov, mdat` only, `mvhd` duration `11.867 s`, `video.duration` `11.867 s`, decodable seeked frame with lit particles; `pnpm ai:check`, `pnpm test` (224/224 plus Toolcraft docs/integrity checks), and `pnpm build` pass; the source-video export browser test with the new MP4 structure assertion passes. Browser suite status for this pass is listed under Risks.
+- Skipped checks: Full `pnpm verify:perf` is not required for this post-first-working non-performance edit; the change does not touch preview rendering, controls, or viewport paths.
+- Risks: On the unmodified tree, four browser tests already report mismatches unrelated to export (`reference.video.default-display` observable-helper row, optimized GIF export wait, persistence reload, and the dense bright default `Scale` expectation of 24 versus the shipped 14), and the source-video upload observable step is intermittently unstable; they need a separate test-alignment pass. Playwright's bundled Chromium has no H.264 encoder, so the e2e MP4 structure assertion only runs when the export is actually MP4; the progressive file is assembled in memory, so very long 4K exports hold the whole file in RAM before download; `mp4-muxer` is in maintenance mode in favor of `mediabunny`.
+
 ## Decisions
 
 ### Renderer
 
-- Decision: Canvas 2D live preview renderer with optional normalized/invertible source-image luminance sampling, source-video luminance sampling, SVG still export, MediaRecorder MP4/WebM export, and worker-based GIF export generated from the same ASCII frame model.
+- Decision: Canvas 2D live preview renderer with optional normalized/invertible source-image luminance sampling, source-video luminance sampling, SVG still export, WebCodecs H.264 MP4 export (MediaRecorder fallback), MediaRecorder WebM export, and worker-based GIF export generated from the same ASCII frame model.
 - Reason: The product is dense text-output: the stress state can draw many glyphs per frame, uploaded media is source material rather than a visible layer, and the user still needs a vector SVG still export with exact particle colors.
 - Evidence: `src/app/ascii-pattern-renderer.tsx` renders only product canvas output and loads `source.image` plus `source.video`; `src/app/ascii-pattern.ts` generates deterministic organic glyph frames, image/video luminance sampling, `pattern.voids` mask shaping, media-linked tonal-depth mapping with invariant glyph geometry, SVG cross geometry with fixed stroke width, and SVG text for other particle families; `src/app/app-performance.ts` declares `rendererTechnique`, `rendererPipeline`, media-import coverage, and workload scenarios.
 
@@ -522,11 +539,11 @@ Renderer Technique Decision Matrix:
 - sourceRepresentation: video-media when uploaded, image-media fallback when uploaded, procedural fallback when both are empty.
 - productRepresentation: text.
 - previewRenderer: canvas-2d.
-- exportRenderer: media-recorder for MP4/WebM, worker-based palette/LZW encoding for GIF, canvas-2d for PNG/JPG, and SVG vector geometry/text for still output.
+- exportRenderer: WebCodecs H.264 plus progressive MP4 muxing for MP4 (media-recorder fallback), media-recorder for WebM, worker-based palette/LZW encoding for GIF, canvas-2d for PNG/JPG, and SVG vector geometry/text for still output.
 - rendererWorkload: text-output.
 - rendererStrategy: canvas-2d.
 - whyNotAlternativeStrategies: DOM and SVG live preview create too many nodes at stress scale; WebGL/WebGPU do not improve the text glyph primitive or SVG export requirement, and source-media sampling is bounded to uploaded media frames rather than every glyph draw.
-- fidelityRisks: Canvas preview rasterizes glyphs; MP4 support depends on browser MediaRecorder capabilities; GIF intentionally uses a 32-color palette and 12 fps cadence for compact web delivery.
+- fidelityRisks: Canvas preview rasterizes glyphs; standard MP4 depends on a WebCodecs H.264 encoder and otherwise falls back to MediaRecorder; GIF intentionally uses a 32-color palette and 12 fps cadence for compact web delivery.
 - performanceRisks: Small scale, low spacing, and high density increase glyph count; uploaded source images add decode and luminance preparation; uploaded source videos add decode, seek, luminance auto-leveling, and frame-sampling work; MediaRecorder video export takes approximately the selected timeline duration; long 4K GIF exports remain expensive by nature.
 
 Renderer Layer Inventory:
@@ -614,7 +631,7 @@ Render Pipeline Inventory:
 
 ## Risks
 
-- Risk: MP4 recording support depends on Chromium/macOS MediaRecorder capabilities; the app checks `MediaRecorder.isTypeSupported` and safely falls back to WebM if MP4 is unavailable.
+- Risk: Standard MP4 export needs a WebCodecs H.264 encoder; without one the app falls back to MediaRecorder MP4 (fragmented) and then to WebM when `MediaRecorder.isTypeSupported` rejects MP4.
 ### Iteration 14 — Framer Interactive Video Component
 
 - Request: Begin a React Code Component for the agency's Framer site, using a background video that reacts to pointer and mobile touch interaction.

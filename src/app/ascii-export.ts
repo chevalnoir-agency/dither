@@ -1,3 +1,5 @@
+import { ArrayBufferTarget, Muxer } from "mp4-muxer";
+
 import {
   createToolcraftPngExportCanvas,
   getToolcraftVideoExportSize,
@@ -397,6 +399,180 @@ export async function exportAsciiImage(
   reportProgress(1);
 }
 
+const mp4KeyFrameIntervalSeconds = 2;
+
+function getMp4Bitrate(width: number, height: number): number {
+  return Math.round(
+    Math.min(40_000_000, Math.max(2_000_000, width * height * videoFrameRate * 0.12)),
+  );
+}
+
+async function getMp4EncoderConfig(
+  width: number,
+  height: number,
+): Promise<VideoEncoderConfig | undefined> {
+  if (typeof VideoEncoder === "undefined" || typeof VideoFrame === "undefined") {
+    return undefined;
+  }
+
+  // High then Baseline profile, at the lowest level that fits the frame size.
+  const level = width * height > 2560 * 1440 ? "33" : width * height > 1920 * 1088 ? "32" : "28";
+  const codecs = [`avc1.6400${level}`, `avc1.4D00${level}`, `avc1.42E0${level}`, "avc1.640033"];
+
+  for (const codec of codecs) {
+    const config: VideoEncoderConfig = {
+      avc: { format: "avc" },
+      bitrate: getMp4Bitrate(width, height),
+      codec,
+      framerate: videoFrameRate,
+      height,
+      width,
+    };
+
+    try {
+      const support = await VideoEncoder.isConfigSupported(config);
+
+      if (support.supported) {
+        return config;
+      }
+    } catch {
+      // Try the next profile.
+    }
+  }
+
+  return undefined;
+}
+
+// Encodes MP4 frame by frame with WebCodecs and muxes a standard (non-fragmented,
+// fast-start) H.264 file with a constant frame rate and a real duration header, so
+// the result opens in QuickTime, editing software, and upload pipelines. MediaRecorder
+// MP4 is fragmented, has a zero header duration, and a real-time variable cadence.
+// Returns false when this browser has no usable H.264 WebCodecs encoder.
+async function exportAsciiMp4WithWebCodecs(
+  state: ToolcraftState,
+  reportProgress: (progress: number) => void,
+): Promise<boolean> {
+  const settings = getAsciiPatternSettings(state);
+  const size = getToolcraftVideoExportSize({
+    resolution: settings.videoResolution,
+    state,
+  });
+  // H.264 requires even dimensions.
+  const width = Math.max(2, size.width - (size.width % 2));
+  const height = Math.max(2, size.height - (size.height % 2));
+  const encoderConfig = await getMp4EncoderConfig(width, height);
+
+  if (!encoderConfig) {
+    return false;
+  }
+
+  const durationSeconds = Math.max(1, state.timeline.durationSeconds);
+  const frameCount = Math.max(2, Math.round(durationSeconds * videoFrameRate));
+  const frameDurationUs = Math.round(1_000_000 / videoFrameRate);
+  const keyFrameInterval = mp4KeyFrameIntervalSeconds * videoFrameRate;
+  const getSourceSampler = await createExportSourceSamplerFactory(state);
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d");
+
+  if (!context) {
+    throw new Error("Video export requires a 2D canvas context.");
+  }
+
+  const includeBackground =
+    shouldIncludeAsciiVideoBackground(state) &&
+    shouldIncludeToolcraftExportBackground({
+      format: "video",
+      schema: state.schema,
+    });
+  const muxer = new Muxer({
+    fastStart: "in-memory",
+    target: new ArrayBufferTarget(),
+    video: { codec: "avc", frameRate: videoFrameRate, height, width },
+  });
+  let encoderError: unknown;
+  const encoder = new VideoEncoder({
+    error: (error) => {
+      encoderError = error;
+    },
+    output: (chunk, metadata) => {
+      muxer.addVideoChunk(chunk, metadata);
+    },
+  });
+  encoder.configure(encoderConfig);
+
+  try {
+    for (let frameIndex = 0; frameIndex < frameCount; frameIndex += 1) {
+      if (encoderError) {
+        throw encoderError;
+      }
+
+      const timeSeconds = (frameIndex / frameCount) * durationSeconds;
+      const sourceSampler = await getSourceSampler(timeSeconds);
+      context.save();
+      context.setTransform(size.pixelRatio, 0, 0, size.pixelRatio, 0, 0);
+      drawAsciiPattern(context, {
+        height: state.canvas.size.height,
+        includeBackground,
+        progress: getAsciiPatternProgress(state, timeSeconds),
+        settings,
+        sourceSampler,
+        width: state.canvas.size.width,
+      });
+      context.restore();
+
+      const frame = new VideoFrame(canvas, {
+        duration: frameDurationUs,
+        timestamp: frameIndex * frameDurationUs,
+      });
+      try {
+        encoder.encode(frame, { keyFrame: frameIndex % keyFrameInterval === 0 });
+      } finally {
+        frame.close();
+      }
+      reportProgress((frameIndex / frameCount) * 0.95);
+
+      // Keep memory bounded and let the progress indicator repaint.
+      while (encoder.encodeQueueSize > 4 && !encoderError) {
+        await wait(4);
+      }
+      if (frameIndex % 4 === 0) {
+        await wait(0);
+      }
+    }
+
+    await encoder.flush();
+    if (encoderError) {
+      throw encoderError;
+    }
+    muxer.finalize();
+  } finally {
+    if (encoder.state !== "closed") {
+      encoder.close();
+    }
+  }
+
+  const blob = new Blob([muxer.target.buffer], { type: "video/mp4" });
+  if (blob.size === 0) {
+    throw new Error("Video export produced an empty blob.");
+  }
+
+  const fileName = `${getSafeFileStem()}.mp4`;
+  rememberExport({
+    blob,
+    durationSeconds,
+    fileName,
+    height,
+    kind: "video",
+    type: blob.type,
+    width,
+  });
+  downloadBlob(blob, fileName);
+  reportProgress(1);
+  return true;
+}
+
 export async function exportAsciiVideo(
   state: ToolcraftState,
   reportProgress: (progress: number) => void,
@@ -405,6 +581,10 @@ export async function exportAsciiVideo(
 
   if (settings.videoFormat === "gif") {
     await exportAsciiGif(state, reportProgress);
+    return;
+  }
+
+  if (settings.videoFormat === "mp4" && (await exportAsciiMp4WithWebCodecs(state, reportProgress))) {
     return;
   }
 
