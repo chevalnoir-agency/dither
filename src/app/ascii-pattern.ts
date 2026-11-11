@@ -14,6 +14,8 @@ export const ASCII_SOURCE_IMAGE_INVERT_TARGET = "source.image.invert";
 export const ASCII_SOURCE_VIDEO_TARGET = "source.video";
 export const ASCII_SOURCE_VIDEO_INVERT_TARGET = "source.video.invert";
 
+export type AsciiVideoExportDurationSeconds = 5 | 10 | 15;
+
 export type AsciiPatternSettings = {
   background: string;
   density: number;
@@ -27,6 +29,7 @@ export type AsciiPatternSettings = {
   scale: number;
   spacing: number;
   speed: number;
+  videoDurationSeconds: AsciiVideoExportDurationSeconds;
   videoFormat: "gif" | "mp4" | "webm";
   videoResolution: string;
   voids: number;
@@ -96,6 +99,7 @@ const fallbackSettings: AsciiPatternSettings = {
   scale: 14,
   spacing: -2,
   speed: 1,
+  videoDurationSeconds: 10,
   videoFormat: "mp4",
   videoResolution: "current",
   voids: 1,
@@ -139,6 +143,12 @@ function readParticleType(value: unknown): AsciiParticleType {
 
 function readImageFormat(value: unknown): "jpg" | "png" {
   return value === "jpg" ? "jpg" : "png";
+}
+
+function readVideoDurationSeconds(value: unknown): AsciiVideoExportDurationSeconds {
+  const seconds = Number(value);
+
+  return seconds === 5 || seconds === 15 ? seconds : 10;
 }
 
 function readVideoFormat(value: unknown): "gif" | "mp4" | "webm" {
@@ -665,6 +675,7 @@ export function getAsciiPatternSettings(state: ToolcraftState): AsciiPatternSett
     scale: clamp(readNumber(state.values["pattern.scale"], fallbackSettings.scale), 3, 48),
     spacing: clamp(readNumber(state.values["pattern.spacing"], fallbackSettings.spacing), -8, 48),
     speed: clamp(readNumber(state.values["motion.speed"], fallbackSettings.speed), 0, 4),
+    videoDurationSeconds: readVideoDurationSeconds(state.values["export.video.duration"]),
     videoFormat: readVideoFormat(state.values["export.video.format"]),
     videoResolution: readString(
       state.values["export.video.resolution"],
@@ -698,10 +709,11 @@ export function getAsciiSourceSamplerSize({
 export function getAsciiPatternProgress(
   state: ToolcraftState,
   timeSeconds = state.timeline.currentTimeSeconds,
+  durationSeconds = state.timeline.durationSeconds,
 ): number {
   return getToolcraftTimelineLoopProgress({
     currentTimeSeconds: timeSeconds,
-    durationSeconds: state.timeline.durationSeconds,
+    durationSeconds,
   });
 }
 

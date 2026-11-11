@@ -846,14 +846,14 @@ export const appAcceptance: readonly ToolcraftComponentAcceptance[] = [
     componentType: "select",
     evidence: "exported-bytes",
     expectedObservable:
-      "Choosing GIF creates a looping, reduced-palette animated GIF with timeline-matched duration, while MP4 or WebM uses a supported MediaRecorder container.",
+      "Choosing GIF creates a looping, reduced-palette animated GIF with the selected export duration, while MP4 or WebM uses a supported MediaRecorder container.",
     fixture: "short timeline video export fixture",
     id: "export.video.format",
     kind: "control",
     optionCoverage: ["mp4", "webm", "gif"],
     target: "export.video.format",
     userAction:
-      "Choose GIF and verify GIF89a bytes, dimensions, reduced palette, loop metadata, and timeline duration; verify MP4/WebM recorder output separately.",
+      "Choose GIF and verify GIF89a bytes, dimensions, reduced palette, loop metadata, and selected export duration; verify MP4/WebM recorder output separately.",
   },
   {
     automated: true,
@@ -871,6 +871,23 @@ export const appAcceptance: readonly ToolcraftComponentAcceptance[] = [
     target: "export.video.resolution",
     userAction:
       "Choose Current and 4K video resolution, export, load metadata, and verify video dimensions.",
+  },
+  {
+    automated: true,
+    automatedTestName: "video duration sets exported animation length",
+    browser: true,
+    browserTestName: "browser: video duration select sets exported video length",
+    componentType: "select",
+    evidence: "exported-bytes",
+    expectedObservable:
+      "Choosing 5 s, 10 s, or 15 s sets the length of the exported MP4, WebM, or GIF, with the procedural field completing one seamless loop over that length.",
+    fixture: "default procedural field with Current resolution",
+    id: "export.video.duration",
+    kind: "control",
+    optionCoverage: ["5", "10", "15"],
+    target: "export.video.duration",
+    userAction:
+      "Choose 5 s and 10 s video duration, export, load metadata, and verify the exported video length matches the selected duration.",
   },
   {
     actionCoverage: ["export.svg", "export.png", "export.video"],
@@ -1061,8 +1078,8 @@ export const starterControlSectionInventory: readonly ToolcraftControlSectionInv
   {
     entity: "Video export",
     groupingReason:
-      "Format and resolution are the compact workflow pair for GIF/MP4/WebM animation output.",
-    targets: ["export.video.format", "export.video.resolution"],
+      "Format and resolution are the compact workflow pair for GIF/MP4/WebM animation output, and duration sets the length of that same animation file.",
+    targets: ["export.video.format", "export.video.resolution", "export.video.duration"],
     title: "Video Export",
   },
 ];

@@ -466,7 +466,7 @@ async function exportAsciiMp4WithWebCodecs(
     return false;
   }
 
-  const durationSeconds = Math.max(1, state.timeline.durationSeconds);
+  const durationSeconds = settings.videoDurationSeconds;
   const frameCount = Math.max(2, Math.round(durationSeconds * videoFrameRate));
   const frameDurationUs = Math.round(1_000_000 / videoFrameRate);
   const keyFrameInterval = mp4KeyFrameIntervalSeconds * videoFrameRate;
@@ -515,7 +515,7 @@ async function exportAsciiMp4WithWebCodecs(
       drawAsciiPattern(context, {
         height: state.canvas.size.height,
         includeBackground,
-        progress: getAsciiPatternProgress(state, timeSeconds),
+        progress: getAsciiPatternProgress(state, timeSeconds, durationSeconds),
         settings,
         sourceSampler,
         width: state.canvas.size.width,
@@ -593,7 +593,7 @@ export async function exportAsciiVideo(
     state,
   });
   const recorderTarget = getRecorderMimeType(settings.videoFormat);
-  const durationSeconds = Math.max(1, state.timeline.durationSeconds);
+  const durationSeconds = settings.videoDurationSeconds;
   const sourceSamplerFactory = await createVideoExportSourceSamplerFactory(state);
   const canvas = document.createElement("canvas");
   canvas.width = width;
@@ -665,7 +665,7 @@ export async function exportAsciiVideo(
       drawAsciiPattern(context, {
         height: state.canvas.size.height,
         includeBackground,
-        progress: getAsciiPatternProgress(state, timeSeconds),
+        progress: getAsciiPatternProgress(state, timeSeconds, durationSeconds),
         settings,
         sourceSampler,
         width: state.canvas.size.width,
@@ -717,7 +717,7 @@ async function exportAsciiGif(
     resolution: settings.videoResolution,
     state,
   });
-  const durationSeconds = Math.max(1, state.timeline.durationSeconds);
+  const durationSeconds = settings.videoDurationSeconds;
   const frameCount = Math.max(2, Math.round(durationSeconds * gifFrameRate));
   const totalDelayCentiseconds = Math.max(1, Math.round(durationSeconds * 100));
   const getSourceSampler = await createExportSourceSamplerFactory(state);
@@ -762,7 +762,7 @@ async function exportAsciiGif(
     drawAsciiPattern(context, {
       height: state.canvas.size.height,
       includeBackground,
-      progress: getAsciiPatternProgress(state, timeSeconds),
+      progress: getAsciiPatternProgress(state, timeSeconds, durationSeconds),
       settings,
       sourceSampler,
       width: state.canvas.size.width,

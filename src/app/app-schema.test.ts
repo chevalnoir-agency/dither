@@ -273,6 +273,16 @@ describe("appSchema", () => {
       target: "export.video.format",
       type: "select",
     });
+    expect(videoExportSection?.controls.videoDuration).toMatchObject({
+      defaultValue: "10",
+      options: [
+        { label: "5 s", value: "5" },
+        { label: "10 s", value: "10" },
+        { label: "15 s", value: "15" },
+      ],
+      target: "export.video.duration",
+      type: "select",
+    });
   });
 
   it("second video reference defines dense bright default field", () => {
@@ -289,6 +299,7 @@ describe("appSchema", () => {
       scale: 24,
       spacing: -8,
       speed: 1,
+      videoDurationSeconds: 10,
       videoFormat: "mp4",
       videoResolution: "current",
       voids: 1,
@@ -347,6 +358,7 @@ describe("appSchema", () => {
       scale: 6,
       spacing: 0,
       speed: 0,
+      videoDurationSeconds: 10,
       videoFormat: "mp4",
       videoResolution: "current",
       voids: 0,
@@ -425,6 +437,7 @@ describe("appSchema", () => {
       scale: 6,
       spacing: 0,
       speed: 0,
+      videoDurationSeconds: 10,
       videoFormat: "mp4",
       videoResolution: "current",
       voids: 0,
@@ -505,6 +518,7 @@ describe("appSchema", () => {
       scale: 6,
       spacing: 0,
       speed: 0,
+      videoDurationSeconds: 10,
       videoFormat: "mp4",
       videoResolution: "current",
       voids: 0,
@@ -596,6 +610,7 @@ describe("appSchema", () => {
         "image resolution changes exported dimensions",
         "video format exports recorder and optimized GIF output",
         "video resolution changes encoder dimensions",
+        "video duration sets exported animation length",
         "exports svg image and animated video output",
         "timeline playback controls deterministic ASCII loop",
         "resolution scale changes preview backing pixels",
@@ -633,6 +648,7 @@ describe("appSchema", () => {
         "image format select stays responsive",
         "image resolution select records heavy export range",
         "video format select stays responsive",
+        "video duration select stays responsive",
         "video resolution select records encoder workload range",
         "heavy preview render completes within budget",
         "viewport stays stable after product controls",

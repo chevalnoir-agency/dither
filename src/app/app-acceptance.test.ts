@@ -3155,6 +3155,7 @@ describe("Toolcraft template app acceptance coverage", () => {
       "export.image.resolution",
       "export.video.format",
       "export.video.resolution",
+      "export.video.duration",
     ]);
   });
 

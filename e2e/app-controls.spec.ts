@@ -804,7 +804,7 @@ test("browser: source image upload clear reset and transforms update dither outp
   const sourceSvg = await readLastExport(page, "svg");
   expect(sourceSvg.text).toContain("data-particle-color");
 
-  await editTimelineDuration(page, 1);
+  await chooseSelectInSection(page, "Video Export", "Duration", "5 s");
   await chooseSelectInSection(page, "Video Export", "Resolution", "Current");
   await clickExport(page, "Export Video", "video");
   const sourceVideo = await readLastExport(page, "video");
@@ -888,15 +888,15 @@ test("browser: source video upload clear reset and timeline frames update dither
   const sourceSvg = await readLastExport(page, "svg");
   expect(sourceSvg.text).toContain("data-particle-color");
 
-  await editTimelineDuration(page, 1);
+  await chooseSelectInSection(page, "Video Export", "Duration", "5 s");
   await chooseSelectInSection(page, "Video Export", "Resolution", "Current");
   await clickExport(page, "Export Video", "video");
   const sourceVideo = await readLastExport(page, "video");
   const sourceVideoMetadata = await readExportedVideoDurationMetadata(page);
   expect(sourceVideo.size).toBeGreaterThan(1000);
-  expect(sourceVideoMetadata.duration).toBeGreaterThan(0.75);
-  expect(sourceVideoMetadata.duration).toBeLessThan(1.75);
-  expect(sourceVideoMetadata.durationSeconds).toBe(1);
+  expect(sourceVideoMetadata.duration).toBeGreaterThan(4.5);
+  expect(sourceVideoMetadata.duration).toBeLessThan(5.75);
+  expect(sourceVideoMetadata.durationSeconds).toBe(5);
   expect(sourceVideoMetadata.videoWidth).toBe(1920);
   expect(sourceVideoMetadata.videoHeight).toBe(1080);
   const sourceVideoMp4 = await readExportedMp4Structure(page);
@@ -907,8 +907,8 @@ test("browser: source video upload clear reset and timeline frames update dither
     expect(sourceVideoMp4.topLevel.indexOf("moov")).toBeLessThan(
       sourceVideoMp4.topLevel.indexOf("mdat"),
     );
-    expect(sourceVideoMp4.headerDurationSeconds).toBeGreaterThan(0.75);
-    expect(sourceVideoMp4.headerDurationSeconds).toBeLessThan(1.75);
+    expect(sourceVideoMp4.headerDurationSeconds).toBeGreaterThan(4.5);
+    expect(sourceVideoMp4.headerDurationSeconds).toBeLessThan(5.75);
   }
 
   await expectToolcraftProductObservableToChange(
@@ -980,7 +980,7 @@ test("browser: source video export still creates a file when playback start is b
   await openApp(page);
   await pausePlayback(page);
   await uploadSourceVideo(page);
-  await editTimelineDuration(page, 1);
+  await chooseSelectInSection(page, "Video Export", "Duration", "5 s");
   await chooseSelectInSection(page, "Video Export", "Resolution", "Current");
 
   await page.evaluate(() => {
@@ -1014,8 +1014,8 @@ test("browser: source video export still creates a file when playback start is b
   const sourceVideo = await readLastExport(page, "video");
   const sourceVideoMetadata = await readExportedVideoDurationMetadata(page);
   expect(sourceVideo.size).toBeGreaterThan(1000);
-  expect(sourceVideoMetadata.duration).toBeGreaterThan(0.75);
-  expect(sourceVideoMetadata.duration).toBeLessThan(1.75);
+  expect(sourceVideoMetadata.duration).toBeGreaterThan(4.5);
+  expect(sourceVideoMetadata.duration).toBeLessThan(5.75);
 });
 
 test("browser: dark source video auto-levels into visible dither output", async ({
@@ -1213,16 +1213,15 @@ test("browser: background and image export produce correct files", async ({ page
 test("browser: video export produces timeline-duration metadata", async ({ page }) => {
   await openApp(page);
   await pausePlayback(page);
-  await editTimelineDuration(page, 1);
-
+  await chooseSelectInSection(page, "Video Export", "Duration", "5 s");
   await chooseSelectInSection(page, "Video Export", "Resolution", "Current");
   await chooseSelectInSection(page, "Video Export", "Format", "MP4");
   await clickExport(page, "Export Video", "video");
   const currentMetadata = await readExportedVideoDurationMetadata(page);
 
-  expect(currentMetadata.duration).toBeGreaterThan(0.75);
-  expect(currentMetadata.duration).toBeLessThan(1.5);
-  expect(currentMetadata.durationSeconds).toBe(1);
+  expect(currentMetadata.duration).toBeGreaterThan(4.5);
+  expect(currentMetadata.duration).toBeLessThan(5.5);
+  expect(currentMetadata.durationSeconds).toBe(5);
   expect(currentMetadata.videoWidth).toBe(1920);
   expect(currentMetadata.videoHeight).toBe(1080);
 
@@ -1235,12 +1234,33 @@ test("browser: video export produces timeline-duration metadata", async ({ page 
   expect(fourKMetadata.videoHeight).toBe(2160);
 });
 
+test("browser: video duration select sets exported video length", async ({ page }) => {
+  await openApp(page);
+  await pausePlayback(page);
+  await chooseSelectInSection(page, "Video Export", "Resolution", "Current");
+  await chooseSelectInSection(page, "Video Export", "Format", "MP4");
+
+  await chooseSelectInSection(page, "Video Export", "Duration", "5 s");
+  await clickExport(page, "Export Video", "video");
+  const fiveSeconds = await readExportedVideoDurationMetadata(page);
+  expect(fiveSeconds.durationSeconds).toBe(5);
+  expect(fiveSeconds.duration).toBeGreaterThan(4.5);
+  expect(fiveSeconds.duration).toBeLessThan(5.75);
+
+  await chooseSelectInSection(page, "Video Export", "Duration", "10 s");
+  await clickExport(page, "Export Video", "video");
+  const tenSeconds = await readExportedVideoDurationMetadata(page);
+  expect(tenSeconds.durationSeconds).toBe(10);
+  expect(tenSeconds.duration).toBeGreaterThan(9.5);
+  expect(tenSeconds.duration).toBeLessThan(10.75);
+});
+
 test("browser: optimized GIF export preserves dimensions duration and loop", async ({
   page,
 }) => {
   await openApp(page);
   await pausePlayback(page);
-  await editTimelineDuration(page, 1);
+  await chooseSelectInSection(page, "Video Export", "Duration", "5 s");
   await chooseSelectInSection(page, "Video Export", "Resolution", "Current");
   await chooseSelectInSection(page, "Video Export", "Format", "GIF");
   await clickExport(page, "Export Video", "video");
@@ -1251,9 +1271,9 @@ test("browser: optimized GIF export preserves dimensions duration and loop", asy
   expect(gif.fileName).toMatch(/\.gif$/);
   expect(gif.width).toBe(1920);
   expect(gif.height).toBe(1080);
-  expect(gif.duration).toBeGreaterThanOrEqual(0.99);
-  expect(gif.duration).toBeLessThanOrEqual(1.01);
-  expect(gif.durationSeconds).toBe(1);
+  expect(gif.duration).toBeGreaterThanOrEqual(4.99);
+  expect(gif.duration).toBeLessThanOrEqual(5.01);
+  expect(gif.durationSeconds).toBe(5);
   expect(gif.loopCount).toBe(0);
   expect(gif.paletteColors).toBeLessThanOrEqual(32);
   expect(gif.frameCount).toBeGreaterThanOrEqual(2);
@@ -1276,7 +1296,7 @@ test("browser: footer exports create svg image and video bytes", async ({ page }
   const png = await readLastExport(page, "image");
   expect(png.size).toBeGreaterThan(1000);
 
-  await editTimelineDuration(page, 1);
+  await chooseSelectInSection(page, "Video Export", "Duration", "5 s");
   await chooseSelectInSection(page, "Video Export", "Resolution", "Current");
   await clickExport(page, "Export Video", "video");
   const video = await readLastExport(page, "video");
@@ -1787,6 +1807,17 @@ test("browser perf: image resolution select records heavy export range", async (
   );
 });
 
+test("browser perf: video duration select stays responsive", async ({ page }) => {
+  await openApp(page);
+  await pausePlayback(page);
+  const result = await measureToolcraftInteraction(page, async () => {
+    await chooseSelectInSection(page, "Video Export", "Duration", "15 s");
+  });
+  await expect(page.locator("[data-ascii-pattern-canvas]")).toBeVisible();
+  expect(result.durationMs).toBeGreaterThan(0);
+  expectToolcraftScenarioPerformanceBudget(result, appPerformance, "video-duration-control-change");
+});
+
 test("browser perf: video format select stays responsive", async ({ page }) => {
   await openApp(page);
   await pausePlayback(page);
@@ -2203,7 +2234,7 @@ test("browser perf: short video export uses current export settings", async ({ p
       await dragToolcraftSliderToValue(page, "Density", Number(value));
     },
     duration: async (value) => {
-      await editTimelineDuration(page, Number(value));
+      await chooseSelectInSection(page, "Video Export", "Duration", `${Number(value)} s`);
     },
     scale: async (value) => {
       await dragToolcraftSliderToValue(page, "Scale", Number(value));
@@ -2230,7 +2261,7 @@ test("browser perf: optimized GIF export stays responsive", async ({ page }) => 
       await dragToolcraftSliderToValue(page, "Density", Number(value));
     },
     duration: async (value) => {
-      await editTimelineDuration(page, Number(value));
+      await chooseSelectInSection(page, "Video Export", "Duration", `${Number(value)} s`);
     },
     scale: async (value) => {
       await dragToolcraftSliderToValue(page, "Scale", Number(value));

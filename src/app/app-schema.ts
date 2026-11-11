@@ -343,6 +343,23 @@ export const appSchema = defineToolcraft({
               target: "export.video.resolution",
               type: "select",
             },
+            videoDuration: {
+              defaultValue: "10",
+              description:
+                "Length of the exported video or GIF. The procedural field completes one seamless loop over this duration; an uploaded source video keeps its own speed and repeats.",
+              label: "Duration",
+              options: [
+                { label: "5 s", value: "5" },
+                { label: "10 s", value: "10" },
+                { label: "15 s", value: "15" },
+              ],
+              orderRole: "mode",
+              performanceReason:
+                "Video duration changes the number of encoded frames only during export.",
+              performanceRole: "responsiveness",
+              target: "export.video.duration",
+              type: "select",
+            },
           },
           layoutGroups: [
             {
