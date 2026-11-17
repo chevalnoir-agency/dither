@@ -23,7 +23,7 @@ describe("appSchema", () => {
       width: 1920,
     });
     expect(appSchema.canvas.sizing).toEqual({ mode: "editable-output" });
-    expect(appSchema.canvas.upload).toBe(false);
+    expect(appSchema.canvas.upload).toBe(true);
     expect(appSchema.panels.controls?.sections[0]?.title).toBe("Setup");
     expect(appSchema.panels.controls?.sections[0]?.controls.settingsTransfer).toMatchObject({
       target: "runtime.settingsTransfer",

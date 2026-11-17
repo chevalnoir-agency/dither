@@ -2,6 +2,27 @@
 
 This file records product decisions and the evidence behind them.
 
+## 2026-11-17 — Source video import correction
+
+- Request: Fix video references that do nothing on pattern.chevalnoir.agency in Chrome.
+- Task type: Tier 3 source-media readiness and app-schema upload correction.
+- User-visible result: Paused imports wait for a decoded frame and canvas drops route videos into the existing Source Video uploader.
+- Source/reference checked: Deployed production bundle, GitHub main at 8f710b4, source-video loader/renderer, Toolcraft media import and canvas-drop routing.
+- Reference inputs: User-supplied 1280×720 H.264 MP4, 4.041667 seconds, approximately 602 KiB, used only as a local reproduction fixture; this is a decode regression input, not a visual design reference. The media and its absolute path are excluded from the branch.
+- Docs/contracts read: AGENTS.md; workflow, decision, schema, component, renderer, acceptance and performance docs; Toolcraft systematic-debugging, writing-plans and browser skills.
+- Contract rules applied: controls-product-coverage, acceptance-product-observable, performance-coverage-levels, workflow-required, canvas-no-app-ui.
+- Decision: Make seek completion require decoded pixels at the requested time with no seek in progress; ignore stale loadeddata events, avoid resetting a seek already at its target, and reject a 10-second timeout instead of declaring an undecoded frame successful. Enable the existing schema canvas upload capability.
+- Alternatives rejected: Treating this H.264 file as unsupported, recompressing a 602 KiB file, forcing playback after import, changing render scale, and modifying copied Toolcraft runtime code.
+- State/output mapping: fileDrop/canvas drop → runtime media.import with sourceTarget=source.video → native video decode → ready source sampler → the existing ASCII preview/export. Pause state and output dimensions remain user-owned.
+- Files changed: src/app/ascii-pattern.ts, src/app/ascii-source-video.test.ts, src/app/app-schema.ts, src/app/app-schema.test.ts, e2e/app-controls.spec.ts, e2e/source-video-local-fixture.spec.ts, docs/toolcraft/video-import-fix.md, and this worklog.
+- Regression evidence: Four deterministic seek regressions were RED on the original helper and GREEN after the change. The exact supplied-file paused reimport and canvas-drop reproductions were likewise RED before and GREEN after their respective corrections.
+- Verification: pnpm verify:quick passed 228 app tests plus docs, integrity and script tests; pnpm build passed. Source-video lifecycle/export, invert, autoplay-refusal export and dark-source tests passed. Import performance passed.
+- Skipped checks: Full performance checkpoint is not required for this post-first-working functional correction. The optional local-MP4 test runs only when DITHER_VIDEO_FIXTURE is supplied, so private customer media never becomes a public test asset.
+- Full suite comparison: Serial Chromium coverage completed with 32 passed and 5 failed. All five also fail in the unchanged main checkout: shared-observable contract for reference.video.default-display; optimized GIF timeout; persistence reload; dense-default Scale expectation (24 versus shipped 14); native preview slider responsiveness (658.6ms versus a 500ms budget, unchanged baseline 752.8ms).
+- Supplied-file check: The optional local-MP4 acceptance passed both paused import/reimport and playback using the user's original file, with no page errors. The new canvas-drop and paused-import acceptance cases passed. Source import performance passed; playback performance exceeds its existing 2000ms interaction budget on both trees (unchanged baseline 2607.8ms; correction 2512.3ms on its first run).
+- Verification commands: pnpm verify:quick; pnpm build; pnpm test:browser --workers=1; focused source-video acceptance and performance commands. The initial default three-worker broad run was interrupted after resource-contention timeouts, then the entire functional suite was rerun with one worker. Agent-browser integration was unavailable, so these are Playwright fallback checks.
+- Risks: Decode failure presentation remains handled by the existing renderer. The release-wide gate is not green because of the five independently reproduced baseline checks; this branch is a review draft and production is unchanged. No rendering quality, output dimensions or performance budget was reduced.
+
 ## Status
 
 Mode: product
