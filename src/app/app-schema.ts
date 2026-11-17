@@ -10,7 +10,7 @@ export const appSchema = defineToolcraft({
       width: 1920,
     },
     sizing: { mode: "editable-output" },
-    upload: false,
+    upload: true,
   },
   export: {
     png: {

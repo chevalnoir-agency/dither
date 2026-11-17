@@ -315,14 +315,21 @@ export async function seekAsciiSourceVideo(
     Math.max(0, durationSeconds - 0.033),
   );
 
-  if (video.readyState >= 2 && Math.abs(video.currentTime - targetTime) < 0.025) {
+  const isRequestedFrameReady = (): boolean =>
+    !video.seeking &&
+    video.readyState >= 2 &&
+    Math.abs(video.currentTime - targetTime) < 0.025;
+
+  if (isRequestedFrameReady()) {
     return;
   }
 
   await new Promise<void>((resolve, reject) => {
     let settled = false;
     const finish = (): void => {
-      if (settled) {
+      // A queued loadeddata event can arrive after a new seek has started.
+      // currentTime alone describes the requested position, not decoded pixels.
+      if (settled || !isRequestedFrameReady()) {
         return;
       }
 
@@ -343,19 +350,21 @@ export async function seekAsciiSourceVideo(
       window.clearTimeout(timeout);
       video.removeEventListener("seeked", finish);
       video.removeEventListener("loadeddata", finish);
+      video.removeEventListener("canplay", finish);
       video.removeEventListener("error", fail);
     };
-    const timeout = window.setTimeout(finish, 1500);
+    const timeout = window.setTimeout(fail, 10_000);
 
     video.addEventListener("seeked", finish);
     video.addEventListener("loadeddata", finish);
+    video.addEventListener("canplay", finish);
     video.addEventListener("error", fail);
 
     try {
-      video.currentTime = targetTime;
-      if (video.readyState >= 2 && Math.abs(video.currentTime - targetTime) < 0.025) {
-        finish();
+      if (Math.abs(video.currentTime - targetTime) >= 0.025) {
+        video.currentTime = targetTime;
       }
+      finish();
     } catch {
       fail();
     }

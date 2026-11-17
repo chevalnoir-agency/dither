@@ -940,6 +940,32 @@ test("browser: source video upload clear reset and timeline frames update dither
   );
 });
 
+test("browser: source video canvas drop attaches the video source", async ({ page }) => {
+  await openApp(page);
+  const buffer = await createSourceVideoWebm(page);
+  const transfer = await page.evaluateHandle((bytes) => {
+    const data = new DataTransfer();
+    data.items.add(new File([new Uint8Array(bytes)], "canvas-source-video.webm", { type: "video/webm" }));
+    return data;
+  }, Array.from(buffer));
+  try {
+    await page.locator('[data-slot="toolcraft-runtime-canvas"]').dispatchEvent("drop", { dataTransfer: transfer });
+    await expect(page.getByRole("button", { name: "Remove canvas-source-video.webm" })).toBeVisible();
+    await expect.poll(() => page.locator("[data-ascii-pattern-canvas]").getAttribute("data-source-video-frame-count")).not.toBeNull();
+  } finally {
+    await transfer.dispose();
+  }
+});
+
+test("browser: source video import while paused updates the product frame", async ({ page }) => {
+  await openApp(page);
+  await pausePlayback(page);
+  await expectToolcraftProductObservableToChange(page, async () => {
+    await uploadSourceVideo(page);
+  });
+  await expect(page.getByRole("button", { name: /Play playback/ })).toBeVisible();
+});
+
 test("browser: source video invert swaps light and dark dither output", async ({ page }) => {
   await openApp(page);
   await pausePlayback(page);
